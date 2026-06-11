@@ -40,7 +40,7 @@ if not TOKEN:
 
 MODERATOR_CHAT_ID = 8315293936
 CRYPTOBOT_TOKEN = "582195:AAOKdczYX9Dq8QNvpJ1hY23ft33N6nvBqGk"
-GROUP_URL = "https://t.me/+qYXlqkHfN2sxMTZi"
+GROUP_URL = "https://t.me/+V5ej4_1uFMk0YmU6"
 GROUP_ID = -1003837687191
 
 logging.basicConfig(level=logging.INFO)
@@ -206,6 +206,14 @@ def add_join_request(user_id: int):
     conn.commit()
 
 
+async def is_user_in_group(user_id: int, chat_id: int) -> bool:
+    try:
+        member = await bot.get_chat_member(chat_id, user_id)
+        return member.status in ["member", "administrator", "creator"]
+    except:
+        return False
+
+
 # ========== КУРСЫ ==========
 CRYPTO_RATES = {
     "USDT": Decimal("73.10"),
@@ -270,7 +278,7 @@ def get_stars_amount(rub_price: float) -> int:
     return int(rub_price * STARS_RATE)
 
 
-# ========== 15 ТАРИФОВ (сокращённо, вставь свои полные описания) ==========
+# ========== 15 ТАРИФОВ ==========
 TARIFFS = [
     ("💘 Всё подряд | ALL IN 🎀", 1132.80, "Описание тарифа..."),
     ("👪 Родная кровь | FAMILY INCEST 🧑‍🍼", 471.00, "Описание тарифа..."),
@@ -320,8 +328,8 @@ async def cmd_start(message: types.Message, state: FSMContext):
 
     user_id = message.from_user.id
     
-    # ===== ПРОВЕРКА ЗАЯВОК (РАБОТАЕТ) =====
-    if has_join_request(user_id):
+    # ПРОВЕРКА ЧЛЕНСТВА В ГРУППЕ
+    if await is_user_in_group(user_id, GROUP_ID):
         cursor.execute('SELECT user_id FROM users WHERE user_id = ?', (user_id,))
         user_exists = cursor.fetchone() is not None
         if not user_exists:
@@ -329,21 +337,31 @@ async def cmd_start(message: types.Message, state: FSMContext):
         await show_main_menu(message, state)
     else:
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📢 ПОДАТЬ ЗАЯВКУ", url=GROUP_URL)],
-            [InlineKeyboardButton(text="✅ Я подал(а) заявку", callback_data="check_join_request")]
+            [InlineKeyboardButton(text="📢 ВСТУПИТЬ В ГРУППУ", url=GROUP_URL)],
+            [InlineKeyboardButton(text="✅ Я вступил(а)", callback_data="check_join_request")]
         ])
         await message.answer(
-            "📢 Для доступа к боту необходимо подать заявку на вступление в нашу группу.\n\n"
-            "После подачи заявки нажмите кнопку «Я подал(а) заявку».",
+            "📢 Для доступа к боту необходимо вступить в нашу группу.\n\n"
+            "После вступления нажмите кнопку «✅ Я вступил(а)».",
             reply_markup=keyboard
         )
-    # =======================================
 
 
 @dp.callback_query(F.data == "check_join_request")
 async def check_join_request(callback: types.CallbackQuery, state: FSMContext):
-    # Эта функция больше не нужна, но оставим для совместимости
-    await show_main_menu(callback.message, state)
+    user_id = callback.from_user.id
+    
+    if await is_user_in_group(user_id, GROUP_ID):
+        cursor.execute('SELECT user_id FROM users WHERE user_id = ?', (user_id,))
+        user_exists = cursor.fetchone() is not None
+        if not user_exists:
+            data = await state.get_data()
+            referrer_id = data.get("referrer_id")
+            register_user(user_id, referrer_id)
+        await callback.message.delete()
+        await show_main_menu(callback.message, state)
+    else:
+        await callback.answer("❌ Вы ещё не вступили в группу. Пожалуйста, вступите и нажмите кнопку снова.", show_alert=True)
 
 
 @dp.chat_join_request()
@@ -375,7 +393,6 @@ async def show_main_menu(message: types.Message, state: FSMContext):
     await state.clear()
 
 
-# ========== ОСТАЛЬНЫЕ ОБРАБОТЧИКИ ==========
 @dp.callback_query(F.data.startswith("tariff_"))
 async def process_tariff(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
@@ -1165,10 +1182,6 @@ async def main():
     print("🚀 Бот запускается...")
     await bot.delete_webhook(drop_pending_updates=True)
     print("✅ Вебхук удалён")
-    
-    # ===== ЭТА СТРОЧКА РЕШАЕТ ПРОБЛЕМУ =====
-    await bot.set_my_description("Бот для работы с группой")
-    # ========================================
     
     # ЯВНО УКАЗЫВАЕМ, КАКИЕ ОБНОВЛЕНИЯ НУЖНЫ
     await dp.start_polling(bot, allowed_updates=["message", "callback_query", "chat_join_request"])
