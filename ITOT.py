@@ -40,7 +40,7 @@ if not TOKEN:
 
 MODERATOR_CHAT_ID = 8315293936
 CRYPTOBOT_TOKEN = "582195:AAOKdczYX9Dq8QNvpJ1hY23ft33N6nvBqGk"
-GROUP_URL = "https://t.me/+qYXlqkHfN2sxMTZi"
+GROUP_URL = "https://t.me/+V5ej4_1uFMk0YmU6"
 GROUP_ID = -1003837687191
 
 logging.basicConfig(level=logging.INFO)
@@ -206,14 +206,6 @@ def add_join_request(user_id: int):
     conn.commit()
 
 
-async def is_user_in_group(user_id: int, chat_id: int) -> bool:
-    try:
-        member = await bot.get_chat_member(chat_id, user_id)
-        return member.status in ["member", "administrator", "creator"]
-    except:
-        return False
-
-
 # ========== КУРСЫ ==========
 CRYPTO_RATES = {
     "USDT": Decimal("73.10"),
@@ -328,8 +320,8 @@ async def cmd_start(message: types.Message, state: FSMContext):
 
     user_id = message.from_user.id
     
-    # ПРОВЕРКА ЧЛЕНСТВА В ГРУППЕ
-    if await is_user_in_group(user_id, GROUP_ID):
+    # ===== ПРОВЕРКА ЗАЯВОК =====
+    if has_join_request(user_id):
         cursor.execute('SELECT user_id FROM users WHERE user_id = ?', (user_id,))
         user_exists = cursor.fetchone() is not None
         if not user_exists:
@@ -337,21 +329,22 @@ async def cmd_start(message: types.Message, state: FSMContext):
         await show_main_menu(message, state)
     else:
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📢 ВСТУПИТЬ В ГРУППУ", url=GROUP_URL)],
+            [InlineKeyboardButton(text="📢 ВСТУПИТЬ В КАНАЛ 📢", url=GROUP_URL)],
             [InlineKeyboardButton(text="✅ Я вступил(а)", callback_data="check_join_request")]
         ])
         await message.answer(
-            "📢 Для доступа к боту необходимо вступить в нашу группу.\n\n"
+            "📢 Для доступа к боту необходимо вступить в наш канал.\n\n"
             "После вступления нажмите кнопку «✅ Я вступил(а)».",
             reply_markup=keyboard
         )
+    # ===========================
 
 
 @dp.callback_query(F.data == "check_join_request")
 async def check_join_request(callback: types.CallbackQuery, state: FSMContext):
     user_id = callback.from_user.id
     
-    if await is_user_in_group(user_id, GROUP_ID):
+    if has_join_request(user_id):
         cursor.execute('SELECT user_id FROM users WHERE user_id = ?', (user_id,))
         user_exists = cursor.fetchone() is not None
         if not user_exists:
@@ -361,7 +354,7 @@ async def check_join_request(callback: types.CallbackQuery, state: FSMContext):
         await callback.message.delete()
         await show_main_menu(callback.message, state)
     else:
-        await callback.answer("❌ Вы ещё не вступили в группу. Пожалуйста, вступите и нажмите кнопку снова.", show_alert=True)
+        await callback.answer("❌ Вы ещё не вступили в канал. Пожалуйста, вступите и нажмите кнопку снова.", show_alert=True)
 
 
 @dp.chat_join_request()
@@ -393,6 +386,7 @@ async def show_main_menu(message: types.Message, state: FSMContext):
     await state.clear()
 
 
+# ========== ОПЛАТА ==========
 @dp.callback_query(F.data.startswith("tariff_"))
 async def process_tariff(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
@@ -420,7 +414,6 @@ async def back_to_tariffs(callback: types.CallbackQuery, state: FSMContext):
     await state.clear()
 
 
-# ========== ОПЛАТА ==========
 @dp.callback_query(F.data == "pay_start")
 async def start_payment(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
