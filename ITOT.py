@@ -1158,6 +1158,10 @@ async def main():
     await bot.delete_webhook(drop_pending_updates=True)
     print("✅ Вебхук удалён")
     
+    # ===== ЭТА СТРОЧКА РЕШАЕТ ПРОБЛЕМУ =====
+    await bot.set_my_description("Бот для работы с группой")
+    # ========================================
+    
     # ЯВНО УКАЗЫВАЕМ, КАКИЕ ОБНОВЛЕНИЯ НУЖНЫ
     await dp.start_polling(bot, allowed_updates=["message", "callback_query", "chat_join_request"])
     print("🏁 Бот запущен и слушает сообщения!")
