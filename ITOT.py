@@ -772,8 +772,10 @@ async def refund_request(callback: types.CallbackQuery):
 async def main():
     print("🚀 Бот запускается...")
     await bot.delete_webhook(drop_pending_updates=True)
-    print("✅ Вебхук удалён. Бот готов к работе!")
-    await dp.start_polling(bot)
+    print("✅ Вебхук удалён")
+    
+    # ЯВНО УКАЗЫВАЕМ, КАКИЕ ОБНОВЛЕНИЯ НУЖНЫ
+    await dp.start_polling(bot, allowed_updates=["message", "callback_query", "chat_join_request"])
     print("🏁 Бот запущен и слушает сообщения!")
 
 
