@@ -50,8 +50,8 @@ storage = MemoryStorage()
 bot = Bot(token=TOKEN)
 dp = Dispatcher(storage=storage)
 
-# Для защиты от спама
-last_payment_request = {}  # {user_id: timestamp}
+# Для защиты от спама при скидочной оплате
+last_payment_request = {}
 
 # ========== БАЗА ДАННЫХ (SQLite) ==========
 conn = sqlite3.connect('referrals.db', check_same_thread=False)
@@ -246,10 +246,6 @@ def get_rub_to_stars(rub: float) -> int:
     return int(rub / 1.33)
 
 
-def get_stars_to_rub(stars: int) -> float:
-    return round(stars * 1.33, 2)
-
-
 # ========== КУРСЫ ==========
 CRYPTO_RATES = {
     "USDT": Decimal("73.10"),
@@ -281,7 +277,14 @@ class PaymentState(StatesGroup):
 def get_tariffs_keyboard():
     buttons = []
     for i, (name, price, _) in enumerate(TARIFFS):
-        buttons.append([InlineKeyboardButton(text=f"{name} ({price:.0f}₽)", callback_data=f"tariff_{i}")])
+        style = "primary"
+        if i == 0:
+            style = "danger"
+        elif "ᴨᴩобный" in name:
+            style = "success"
+        elif i == len(TARIFFS) - 2 or i == len(TARIFFS) - 1:
+            style = "danger"
+        buttons.append([InlineKeyboardButton(text=f"{name} ({price:.0f}₽)", callback_data=f"tariff_{i}", style=style)])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
@@ -308,305 +311,23 @@ def get_stars_amount(rub_price: float) -> int:
     return int(rub_price * STARS_RATE)
 
 
-# ========== 15 ТАРИФОВ (ПОЛНЫЕ ОПИСАНИЯ) ==========
+# ========== 15 ТАРИФОВ ==========
 TARIFFS = [
-    ("💘 Всё подряд | ALL IN 🎀", 1132.80, """<b>Тариф: 💘 Всё подряд | ALL IN 🎀</b>
-💵 Стоимость: 1132.80 ₽
-
-<b>Описание тарифа:</b>
-Один платёж — и ты получаешь абсолютно всё, что мы продаём. Кроме «💎 Абсолют | PREMIUM PACK» и «Мастурбаторский рай». Никаких доплат. Только полный доступ ко всем закрытым категориям 👑
-
-➕ <b>Дополнительно:</b>
-· Все onion-ссылки из всех тарифов — 50+ рабочих адресов
-· Все облачные папки (MEGA, Яндекс.Диск, Mail.ru) с пожизненной подпиской
-· Обновления 3 раза в сутки — новый контент падает автоматически
-· Приоритетная поддержка — отвечаем за 2 минуты
-
-♾️ Заплатил раз — пользуешься вечно. Никаких подписок, лимитов, удалений, блокировок.
-
-⚡ Экономия: если покупать все тарифы по отдельности — выйдет больше 5000 ₽. Тариф «ВСЁ ПОДРЯД» — одна цена за всё.
-
-🤖 Бот выдаст полный доступ ко всем категориям моментально после оплаты.
-
-💡 Гарантия: возврат средств в течение 24 часов. По вопросам возврата — в раздел «Мои покупки»."""),
-
-    ("👪 Родная кровь | FAMILY INCEST 🧑‍🍼", 471.00, """<b>Тариф: 👪 Родная кровь | FAMILY INCEST 🧑‍🍼</b>
-💵 Стоимость: 471.00 ₽
-
-<b>Описание тарифа:</b>
-👪 Один платёж — безлимит на самое запретное в семье. Только реальные инцест-пары. Отец/дочь, мать/сын, брат/сестра. 💀
-
-📦 500+ паков: домашние сливы, скрытая камера в спальнях, семейные архивы.
-🎥 50+ часов видео: ночные записи, подслушанные разговоры, постановки под видом реальных семей.
-🧅 10 onion-форумов по инцесту в подарок.
-💾 MEGA + Яндекс.Диск с автопополнением каждые 2 дня.
-
-♾️ Заплатил раз — навсегда.
-⚡️ Обновления 2 раза в неделю.
-🤖 Доступ выдаётся сразу же после оплаты.
-
-Семья — это самое близкое. Получи их всех. 👪🩸🍿
-
-💡 Гарантия: возврат средств в течение 24 часов. По вопросам возврата — в раздел «Мои покупки»."""),
-
-    ("🏘️ Запись с камер | HOME PACK 📹", 483.00, """<b>Тариф: 🏘️ Запись с камер | HOME PACK 📹</b>
-💵 Стоимость: 483.00 ₽
-
-<b>Описание тарифа:</b>
-🏠 Один платёж — безлимит на чужую жизнь. Скрытая камера в квартирах соседей. Спальни, ванные, детские комнаты. 💀
-
-📦 600+ паков: реальные люди дома. Раздевание, секс, сон, душ. Никто не знает, что их снимают.
-🎥 70+ часов видео: скрытые камеры в розетках, шкафах, зеркалах, ванных комнатах.
-🧅 8 onion-форумов с домашней скрытой камерой в подарок.
-💾 MEGA + Яндекс.Диск с автопополнением каждые 12 часов.
-
-♾️ Заплатил раз — навсегда.
-⚡️ Обновления каждый день.
-🤖 Доступ выдаётся сразу же после оплаты.
-
-Они живут своей жизнью. Ты смотришь. 📹
-
-💡 Гарантия: возврат средств в течение 24 часов. По вопросам возврата — в раздел «Мои покупки»."""),
-
-    ("🍼 Крохи | 0-4 ЛЕТ 👼", 423.00, """<b>Тариф: 🍼 Крохи | 0-4 ЛЕТ 👼</b>
-💵 Стоимость: 423.00 ₽
-
-<b>Описание тарифа:</b>
-🧸 Самый нежный и самый запретный край. Только самые маленькие. Только реальные дети от новорождённых до 4 лет. Без постановок, без актёров, без цензуры💀
-
-📦 800+ уникальных паков — домашние сливы: купание, пеленание, сон, игры, раздевание, скрытая камера в детских комнатах и ванных. Только реальные семьи.
-
-🎥 60+ часов эксклюзивного видео — скрытая камера в кроватках, на пеленальных столиках, в душевых. Крик, плач, беспомощность. Никакой цензуры.
-
-🧅 8 onion-форумов для самых маленьких — вход по приглашению внутри тарифа. То, что не публикуют даже на закрытых ресурсах.
-
-💾 Приватные MEGA и Яндекс.Диски с ежедневным автопополнением — новые малыши падают к тебе каждые 12 часов.
-
-⚡️ Обновления каждый день — самые свежие сливы с малышами со всего СНГ, Европы и Азии.
-
-🤖 Доступ выдаётся сразу же после оплаты.
-
-💡 Гарантия: возврат средств в течение 24 часов. По вопросам возврата — в раздел «Мои покупки»."""),
-
-    ("🧸 Малютики | 4-10 ЛЕТ 🙊", 411.00, """<b>Тариф: 🧸 Малютики | 4-10 ЛЕТ 🙊</b>
-💵 Стоимость: 411.00 ₽
-
-<b>Описание тарифа:</b>
-🧸 Один платёж — безлимит на самых маленьких. Только реальные дети 4–10 лет. Без постановок. 💀
-
-📦 600+ паков: ванные, спальни, раздевалки, игры, сон.
-🎥 40+ часов скрытой камеры в детских комнатах и бассейнах.
-🧅 8 onion-форумов для малышек в подарок.
-💾 MEGA + Яндекс.Диск с ежедневным автопополнением.
-
-♾️ Заплатил раз — навсегда.
-⚡ Обновления каждый день.
-🤖 Доступ выдается сразу после оплаты.
-
-Самые маленькие — самые сладкие. Получи их всех. 🧸🍼🍿
-
-💡 Гарантия: возврат средств в течение 24 часов. По вопросам возврата — в раздел «Мои покупки»."""),
-
-    ("🩸 Алая плёнка | 10–14 ЛЕТ 👄", 435.00, """<b>Тариф: 🩸 Алая плёнка | 10–14 ЛЕТ 👄</b>
-💵 Стоимость: 435.00 ₽
-
-<b>Описание тарифа:</b>
-🩸 Один платёж — безлимит на первые разы. Только реальные девочки 10–14 лет. Кровь, крики, уговоры. Без монтажа. 💀
-
-📦 400+ паков: первый секс с мальчиками, с девочками, с родственниками.
-🎥 45+ часов видео: скрытая камера + телефон, два ракурса.
-🧅 8 onion-форумов со свежими «первыми разами» в подарок.
-💾 MEGA + Яндекс.Диск с автопополнением каждые 12 часов.
-
-♾️ Заплатил раз — навсегда.
-⚡ Обновления каждый день.
-🤖 Доступ выдаётся сразу же после оплаты.
-
-Первый раз бывает только раз. Ты посмотришь сотни. 🩸🍿
-
-💡 Гарантия: возврат средств в течение 24 часов. По вопросам возврата — в раздел «Мои покупки»."""),
-
-    ("🌸 Молодые бутоны | 12–16 ЛЕТ 🍫", 408.00, """<b>Тариф: 🌸 Молодые бутоны | 12–16 ЛЕТ 🍫</b>
-💵 Стоимость: 408.00 ₽
-
-<b>Описание тарифа:</b>
-🌸 Один платёж — безлимит на самых свежих. Девочки и мальчики 12–16 лет. Школы, раздевалки, первые разы. 💀
-
-📦 700+ паков: школьные туалеты, душевые, спортзалы, домашние сливы.
-🎥 50+ часов скрытой камеры в школах и раздевалках.
-🧅 10 onion-форумов с молодыми сливами в подарок.
-💾 MEGA + Яндекс.Диск с ежедневным автопополнением.
-
-♾️ Заплатил раз — навсегда.
-⚡ Обновления 2 раза в день.
-🤖 Доступ выдаётся сразу же после оплаты.
-
-Молодость — самая сочная. Получи их всех. 🌸🍿
-
-💡 Гарантия: возврат средств в течение 24 часов. По вопросам возврата — в раздел «Мои покупки»."""),
-
-    ("🍾 Вписка | 13-18 ЛЕТ 🥂", 380.00, """<b>Тариф: 🍾 Вписка | 13-18 ЛЕТ 🥂</b>
-💵 Стоимость: 380.00 ₽
-
-<b>Описание тарифа:</b>
-🍾 Самый свежий и дерзкий возраст. Только реальные подростки 13–18 лет. Первые вечеринки, алкоголь, откровенные игры, скрытая камера на тусовках и домашних вечеринках. Без цензуры, без постановок 💀
-
-📦 500+ уникальных паков — школьные вечеринки, ночные гулянки, пьяные поцелуи, раздевание под бутылочку, скрытая камера в гостях и на выездах.
-
-🎥 50+ часов эксклюзивного видео — скрытая камера в спальнях, душевых после вечеринок, раздевалки на выпускных. Только реальные сливы с тусовок.
-
-🧅 10 onion-ссылок на закрытые форумы с молодёжным контентом — вход по приглашению внутри тарифа.
-
-💾 Приватные MEGA и Яндекс.Диски с ежедневным автопополнением — новые сливы падают каждые 12 часов.
-
-⚡️ Обновления каждый день — самые свежие вечеринки со всего СНГ, Европы и Азии.
-
-🤖 Доступ выдаётся сразу же после оплаты.
-
-Молодость — самая дерзкая. Алкоголь раскрепощает. Смотри на чужую жизнь. 🍾🔥
-
-💡 Гарантия: возврат средств в течение 24 часов. По вопросам возврата — в раздел «Мои покупки»."""),
-
-    ("🍬 Пробный | 100 VIDEOS 🧃", 198.00, """<b>Тариф: 🍬 Пробный | 100 VIDEOS 🧃</b>
-💵 Стоимость: 198.00 ₽
-
-<b>Описание тарифа:</b>
-Один маленький платёж — и ты увидишь, что мы не продаём воздух. Проверь качество перед большой покупкой. 👀
-
-Что внутри: 📦
-• 🎒 15 лучших паков со школьницами 7–16 лет — фото и видео, сливы из школ
-• 👧 По 5 паков на возраст: младшие, средние, старшие
-• 🎥 1 видео скрытой камеры — из раздевалки или душевой
-
-🤖 Бот выдаст доступ сразу же после оплаты.
-
-Сначала попробуй. Потом реши. 👆
-
-💡 Гарантия: возврат средств в течение 24 часов. По вопросам возврата — в раздел «Мои покупки»."""),
-
-    ("💙 Голос отрочества | BOYS 🍆", 466.20, """<b>Тариф: 💙 Голос отрочества | BOYS 🍆</b>
-💵 Стоимость: 466.20 ₽
-
-<b>Описание тарифа:</b>
-🧢 Голос Отрочества | Boys — только мальчики. Только реальные. 6–15 лет. Никаких девочек, никакой воды. Самая закрытая коллекция в нашем сервере. 💀
-
-📦 800+ уникальных паков — раздевалки спортшкол, душевые бассейнов, школьные туалеты, домашние сливы, лагеря, врачебные кабинеты.
-
-🎥 70+ часов эксклюзивного видео — скрытая камера в раздевалках, душевых, туалетах, спальнях. Только проверенные источники из 10 стран.
-
-👦 Сортировка по возрастам: 6–8 лет / 9–11 лет / 12–15 лет. Отдельная папка — «первые разы» (мальчик с мальчиком, мальчик с девочкой).
-
-🧅 8 onion-ссылок на закрытые форумы — специализируются только на мальчиках. Вход по приглашению внутри тарифа.
-
-💾 Приватные MEGA + Яндекс.Диск с ежедневным автопополнением — новые мальчики падают каждые 12 часов.
-
-♾️ Заплатил раз — навсегда. Никаких доплат и удалений.
-
-⚡ Обновления каждый день — самые свежие сливы со всего СНГ, Европы и Азии.
-
-🤖 Доступ выдаётся сразу же после оплаты.
-
-💡 Гарантия: возврат средств в течение 24 часов. По вопросам возврата — в раздел «Мои покупки»."""),
-
-    ("💋 Сладкие губки | ONLY GIRL 🌹", 414.00, """<b>Тариф: 💋 Сладкие губки | ONLY GIRL 🌹</b>
-💵 Стоимость: 414.00 ₽
-
-<b>Описание тарифа:</b>
-👩‍❤️‍👩 Один платёж — девушки с девушками. Без мужчин. Чистая женская страсть.
-
-📦 750+ паков: школьницы 13–17, студентки 18–22. Домашние сливы, скрытая камера
-🏳️‍🌈 Сортировка: «в душе», «в кровати», «пьяные на вписке», «училка/ученица», «мать/дочь», «первые раз»
-🎥 55+ часов видео: раздевалки, душевые, спальни. Только реальные лесби-пары
-🧅 8 onion-ссылок на закрытые лесби-форумы
-💾 Облачные папки с пополнением каждые 12 часов
-
-♾️ Платёж раз — навсегда
-⚡ Обновления 2 раза в день (весь мир)
-🤖 Доступ за 10 секунд
-
-Две девушки лучше, чем одна. 👭🔞🍿
-
-💡 Гарантия: возврат средств в течение 24 часов. По вопросам возврата — в раздел «Мои покупки»."""),
-
-    ("🐕‍🦺 Хлев | ZOOPHILIA 🐈", 408.00, """<b>Тариф: 🐕‍🦺 Хлев | ZOOPHILIA 🐈</b>
-💵 Стоимость: 408.00 ₽
-
-<b>Описание тарифа:</b>
-🐕 Один платёж — самый животный, самый запретный контент. Сцены с животными. Без цензуры.
-
-📦 500+ паков: собаки, лошади, свиньи, коровы, петухи. Женщины, мужчины, малолетние
-🐎 Сортировка по животным: собаки, лошади, копытные, птицы, экзотика
-👧 Отдельная категория — дети с животными (12–17 лет). Самое редкое
-🎥 60+ часов видео: фермы, подвалы, частные дома. 15 стран
-🧅 10 onion-ссылок на закрытые зоо-форумы
-💾 MEGA-облака с пополнением каждые 6 часов
-
-♾️ Платёж раз — навсегда
-⚡ Обновления каждый день
-🤖 Доступ за 10 секунд
-
-Животные не скажут. Ты получишь всё. 🐕💦🔞🍿
-
-💡 Гарантия: возврат средств в течение 24 часов. По вопросам возврата — в раздел «Мои покупки»."""),
-
-    ("⛓️ Мясо | AGGRESIVE 🥀", 521.40, """<b>Тариф: ⛓️ Мясо | AGGRESIVE 🥀</b>
-💵 Стоимость: 521.40 ₽
-
-<b>Описание тарифа:</b>
-⛓️ Один платёж — безлимит на самое жестокое. Только реальное насилие. Изнасилования, пытки, удушение, групповые. 💀
-
-📦 400+ паков: уличные нападения, домашнее насилие, похищения, постмортем.
-🎥 55+ часов видео: скрытые камеры, трофейные записи насильников.
-🧅 10 onion-ссылок на закрытые хардкор-форумы в подарок.
-💾 MEGA + Яндекс.Диск с автопополнением каждые 6 часов.
-
-♾️ Заплатил раз — навсегда.
-⚡ Обновления каждый день.
-🤖 Доступ выдаётся сразу же после оплаты.
-
-Не для слабонервных. Только для настоящих ценителей боли. ⛓️☠️🍿
-
-💡 Гарантия: возврат средств в течение 24 часов. По вопросам возврата — в раздел «Мои покупки»."""),
-
-    ("💎 Абсолют | PREMIUM PACK 🔐", 3333.00, """<b>Тариф: 💎 Абсолют | PREMIUM PACK 🔐</b>
-💵 Стоимость: 3333.00 ₽
-
-<b>Описание тарифа:</b>
-👑 Абсолют | Premium Pack — это максимальная степень погружения в запретное. Ты покупаешь не просто набор файлов. Ты покупаешь пожизненный билет в закрытый мир, куда обычные люди не заходят даже под угрозой смерти. 💀
-
-📦 Гигантский архив — более 15 000 уникальных файлов.
-🎥 Более 800 часов эксклюзивного видео.
-🧅 Доступ к 30+ закрытым onion-ресурсам.
-💾 Личные облачные хранилища с ежедневной синхронизацией.
-🔒 Абсолютная анонимность.
-⚡ Обновления 3 раза в сутки.
-♾️ Один платёж — доступ навсегда.
-🤖 Мгновенная выдача доступа.
-
-💎 Полный архив всех тарифов, ранний доступ к сливам, приоритетная поддержка 24/7, персональный бот-помощник.
-
-🍿 Добро пожаловать в Абсолют 🔞
-
-💡 Гарантия: возврат средств в течение 24 часов. По вопросам возврата — в раздел «Мои покупки»."""),
-
-    ("⚡ LUXE PRESTIGE 🖤", 9000.00, """<b>Тариф: ⚡ LUXE PRESTIGE 🖤</b>
-💵 Стоимость: 9000.00 ₽
-
-<b>Описание тарифа:</b>
-💎 LUXE PRESTIGE — это не тариф. Это статус. Вход в закрытый клуб для тех, кто привык получать лучшее.
-
-📦 5 000+ уникальных паков (эксклюзив, удаляются через 24 часа)
-🎥 200+ часов 4K видео
-🧅 Доступ к 20 закрытым onion-ресурсам
-💾 VIP-облака MEGA Pro / Яндекс.Диск Premium
-⚡️ Персональный источник под заказ
-🔒 Абсолютная приватизация
-🤵 Личный менеджер 24/7
-♾️ Платёж раз — доступ навсегда + страховка
-
-💎 LUXE PRESTIGE — для тех, кто не считает деньги.
-
-💡 Гарантия: возврат средств в течение 24 часов. По вопросам возврата — в раздел «Мои покупки».""")
+    ("💘 Всё подряд | ALL IN 🎀", 1132.80, "Описание тарифа..."),
+    ("👪 Родная кровь | FAMILY INCEST 🧑‍🍼", 471.00, "Описание тарифа..."),
+    ("🏘️ Запись с камер | HOME PACK 📹", 483.00, "Описание тарифа..."),
+    ("🍼 Крохи | 0-4 ЛЕТ 👼", 423.00, "Описание тарифа..."),
+    ("🧸 Малютики | 4-10 ЛЕТ 🙊", 411.00, "Описание тарифа..."),
+    ("🩸 Алая плёнка | 10–14 ЛЕТ 👄", 435.00, "Описание тарифа..."),
+    ("🌸 Молодые бутоны | 12–16 ЛЕТ 🍫", 408.00, "Описание тарифа..."),
+    ("🍾 Вписка | 13-18 ЛЕТ 🥂", 380.00, "Описание тарифа..."),
+    ("🍬 Пробный | 100 VIDEOS 🧃", 198.00, "Описание тарифа..."),
+    ("💙 Голос отрочества | BOYS 🍆", 466.20, "Описание тарифа..."),
+    ("💋 Сладкие губки | ONLY GIRL 🌹", 414.00, "Описание тарифа..."),
+    ("🐕‍🦺 Хлев | ZOOPHILIA 🐈", 408.00, "Описание тарифа..."),
+    ("⛓️ Мясо | AGGRESIVE 🥀", 521.40, "Описание тарифа..."),
+    ("💎 Абсолют | PREMIUM PACK 🔐", 3333.00, "Описание тарифа..."),
+    ("⚡ LUXE PRESTIGE 🖤", 9000.00, "Описание тарифа...")
 ]
 
 # ========== REPLY-КЛАВИАТУРА ==========
@@ -704,42 +425,62 @@ async def show_main_menu(message: types.Message, state: FSMContext):
     await state.clear()
 
 
+# ========== НОВАЯ ЛОГИКА ОПЛАТЫ STARTS ==========
 @dp.callback_query(F.data.startswith("tariff_"))
 async def process_tariff(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
     idx = int(callback.data.split("_")[1])
     name, price, description = TARIFFS[idx]
     await state.update_data(selected_tariff_index=idx, selected_price=price, tariff_name=name)
-    
+
     stars = get_rub_to_stars(price)
     discount_stars = get_rub_to_stars(price * 0.8)
-    
+
     tariff_text = f"{description}\n\n"
     tariff_text += f"⭐️ Цена: {stars} ⭐ ({price:.0f} ₽)\n\n"
-    tariff_text += "👇 Как хотите оплатить?"
+    tariff_text += "👇 Выберите способ оплаты:"
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="⭐️ Оплатить", callback_data="pay_stars_full")],
-        [InlineKeyboardButton(text="🎁 Оплатить со скидкой", callback_data="pay_stars_discount")],
+        [InlineKeyboardButton(text="⭐️ Telegram Stars", callback_data="pay_stars_full")],
+        [InlineKeyboardButton(text="💎 CryptoBot", callback_data="pay_cryptobot")],
+        [InlineKeyboardButton(text="💶 Перевод по адресу", callback_data="pay_crypto_address")],
+        [InlineKeyboardButton(text="💰 Оплатить с баланса", callback_data="pay_with_balance_check")],
         [InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_tariffs")]
     ])
 
     await callback.message.edit_text(tariff_text, parse_mode="HTML", reply_markup=keyboard)
 
 
-@dp.callback_query(F.data == "back_to_tariffs")
-async def back_to_tariffs(callback: types.CallbackQuery, state: FSMContext):
-    await callback.answer()
-    await callback.message.edit_text(
-        "🌟 Коснись любого тарифа — и запретное откроется:",
-        reply_markup=get_tariffs_keyboard()
-    )
-    await state.clear()
-
-
-# ========== ОПЛАТА (ПОЛНАЯ ЦЕНА) ==========
 @dp.callback_query(F.data == "pay_stars_full")
 async def pay_stars_full(callback: types.CallbackQuery, state: FSMContext):
+    await callback.answer()
+    data = await state.get_data()
+    price = data.get("selected_price", 0)
+    tariff_name = data.get("tariff_name", "тариф")
+    stars = get_rub_to_stars(price)
+
+    text = (
+        f"⭐️ ВЫБЕРИТЕ СПОСОБ ОПЛАТЫ\n\n"
+        f"📦 Тариф: {tariff_name}\n\n"
+        f"1️⃣ Обычная (мгновенно)\n"
+        f"   ⭐️ {stars} ⭐ ({price:.0f} ₽)\n\n"
+        f"2️⃣ Со скидкой (через бота)\n"
+        f"   ⭐️ {int(stars * 0.8)} ⭐ ({price * 0.8:.0f} ₽)\n"
+        f"   Экономия: {price * 0.2:.0f} ₽\n\n"
+        f"👇 Ваш выбор:"
+    )
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⭐️ Обычная", callback_data="pay_stars_regular")],
+        [InlineKeyboardButton(text="🎁 Со скидкой", callback_data="pay_stars_discount")],
+        [InlineKeyboardButton(text="👈 Назад", callback_data="back_to_payment_methods")]
+    ])
+
+    await callback.message.edit_text(text, parse_mode="HTML", reply_markup=keyboard)
+
+
+@dp.callback_query(F.data == "pay_stars_regular")
+async def pay_stars_regular(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
     data = await state.get_data()
     price = data.get("selected_price", 0)
@@ -763,66 +504,6 @@ async def pay_stars_full(callback: types.CallbackQuery, state: FSMContext):
     await state.update_data(stars_price=price, stars_tariff_name=tariff_name, stars_tariff_idx=data.get("selected_tariff_index", 0))
 
 
-@dp.callback_query(F.data == "stars_pay_invoice")
-async def stars_invoice(callback: types.CallbackQuery, state: FSMContext):
-    data = await state.get_data()
-    price = data.get("stars_price", 0)
-    tariff_name = data.get("stars_tariff_name", "тариф")
-    stars = get_rub_to_stars(price)
-
-    await bot.send_invoice(
-        chat_id=callback.from_user.id,
-        title=f"Оплата тарифа",
-        description=f"Тариф: {tariff_name}\nСумма: {price:.0f} ₽",
-        payload=f"stars_payment_{int(price * 100)}",
-        provider_token="",
-        currency="XTR",
-        prices=[LabeledPrice(label="Telegram Stars", amount=stars)],
-        start_parameter="stars_payment"
-    )
-    await callback.answer("Счёт создан! После оплаты нажмите «Проверить оплату»")
-
-
-@dp.callback_query(F.data == "check_stars_payment")
-async def check_stars_payment(callback: types.CallbackQuery):
-    await callback.answer("⏳ Платёж ещё не поступил. Откройте кнопку оплаты и подтвердите в Telegram.", show_alert=True)
-
-
-@dp.pre_checkout_query()
-async def pre_checkout_handler(pre_checkout_query: PreCheckoutQuery):
-    await pre_checkout_query.answer(ok=True)
-
-
-@dp.message(F.successful_payment)
-async def successful_payment_handler(message: types.Message, state: FSMContext):
-    data = await state.get_data()
-    price = data.get("stars_price", 0)
-    idx = data.get("stars_tariff_idx", 0)
-    tariff_name = TARIFFS[idx][0] if idx < len(TARIFFS) else "тариф"
-
-    add_purchase(message.from_user.id, tariff_name, price, "stars")
-
-    await message.answer(
-        f"✅ Оплата подтверждена!\n\n"
-        f"📦 Тариф: {tariff_name}\n"
-        f"💰 Сумма: {price:.0f} ₽\n\n"
-        f"🕐 Доступ будет выдан в течение 30 минут — готовлю для вас отдельный канал.\n\n"
-        f"👨‍💼 С вами свяжется администратор.\n\n"
-        f"Спасибо за доверие!\n\n"
-        f"💡 У вас есть 24 часа, чтобы попробовать тариф. Если не подойдёт — вернём деньги. Запросить возврат можно в разделе «Мои покупки»."
-    )
-
-    await bot.send_message(
-        MODERATOR_CHAT_ID,
-        f"🔔 НОВАЯ ОПЛАТА (Telegram Stars)\n"
-        f"👤 Пользователь: @{message.from_user.username or message.from_user.first_name} (ID: {message.from_user.id})\n"
-        f"📦 Тариф: {tariff_name}\n"
-        f"💰 Сумма: {price:.0f} ₽\n"
-        f"Нужно выдать доступ в канал."
-    )
-
-
-# ========== ОПЛАТА СО СКИДКОЙ ==========
 @dp.callback_query(F.data == "pay_stars_discount")
 async def pay_stars_discount(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
@@ -919,13 +600,48 @@ async def process_payment_id(message: types.Message, state: FSMContext):
     await bot.send_message(MODERATOR_CHAT_ID, admin_text, reply_markup=keyboard)
     
     await message.answer(
-        "✅ Заявка отправлена модератору!\n\n"
+        f"✅ Заявка отправлена модератору!\n\n"
         f"📦 Тариф: {tariff_name}\n"
         f"💰 Сумма: {discount_price:.0f} ₽\n\n"
         f"🕐 Модератор проверит оплату и выдаст доступ в ближайшее время.\n\n"
         f"⏰ График работы: 10:00 – 23:00 по МСК"
     )
     
+    await state.clear()
+
+
+@dp.callback_query(F.data == "back_to_payment_methods")
+async def back_to_payment_methods(callback: types.CallbackQuery, state: FSMContext):
+    await callback.answer()
+    data = await state.get_data()
+    price = data.get("selected_price", 0)
+    idx = data.get("selected_tariff_index", 0)
+    name, price, description = TARIFFS[idx]
+    
+    stars = get_rub_to_stars(price)
+    
+    tariff_text = f"{description}\n\n"
+    tariff_text += f"⭐️ Цена: {stars} ⭐ ({price:.0f} ₽)\n\n"
+    tariff_text += "👇 Выберите способ оплаты:"
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⭐️ Telegram Stars", callback_data="pay_stars_full")],
+        [InlineKeyboardButton(text="💎 CryptoBot", callback_data="pay_cryptobot")],
+        [InlineKeyboardButton(text="💶 Перевод по адресу", callback_data="pay_crypto_address")],
+        [InlineKeyboardButton(text="💰 Оплатить с баланса", callback_data="pay_with_balance_check")],
+        [InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_tariffs")]
+    ])
+
+    await callback.message.edit_text(tariff_text, parse_mode="HTML", reply_markup=keyboard)
+
+
+@dp.callback_query(F.data == "back_to_tariffs")
+async def back_to_tariffs(callback: types.CallbackQuery, state: FSMContext):
+    await callback.answer()
+    await callback.message.edit_text(
+        "🌟 Коснись любого тарифа — и запретное откроется:",
+        reply_markup=get_tariffs_keyboard()
+    )
     await state.clear()
 
 
@@ -968,7 +684,7 @@ async def pay_cryptobot(callback: types.CallbackQuery, state: FSMContext):
             await state.update_data(cryptobot_tariff_idx=idx)
 
             text = (
-                f"✅ Счёт на оплату через CryptoBot успешно создан.\n\n"
+                f"✅ Счёт на оплату через CryptoBot успешно создан. Вы получите доступ к тарифу, как только оплатите его.\n\n"
                 f"🧾 Нажмите кнопку «Перейти к оплате», далее выберите монету и нажмите «Оплатить»\n\n"
                 f"🎯 К оплате: {price_rub:.2f} ₽"
             )
@@ -1019,7 +735,7 @@ async def check_cryptobot_payment(callback: types.CallbackQuery, state: FSMConte
                         f"✅ Оплата подтверждена!\n\n"
                         f"📦 Тариф: {tariff_name}\n"
                         f"💰 Сумма: {price:.2f} ₽\n\n"
-                        f"🕐 Доступ будет выдан в течение 30 минут.\n\n"
+                        f"🕐 Доступ будет выдан в течение 30 минут — готовлю для вас отдельный канал.\n\n"
                         f"👨‍💼 С вами свяжется администратор.\n\n"
                         f"Спасибо за доверие!\n\n"
                         f"💡 У вас есть 24 часа, чтобы попробовать тариф. Если не подойдёт — вернём деньги. Запросить возврат можно в разделе «Мои покупки»."
@@ -1096,10 +812,112 @@ async def manual_paid_crypto_address(callback: types.CallbackQuery, state: FSMCo
     await state.set_state(PaymentState.awaiting_screenshot)
 
 
-@dp.callback_query(F.data == "back_to_payment_methods")
-async def back_to_payment_methods(callback: types.CallbackQuery, state: FSMContext):
+@dp.callback_query(F.data == "manual_paid_other")
+async def manual_paid_other(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
-    await start_payment(callback, state)
+    await callback.message.answer(
+        "💰 Оплатили?\n\nОтправьте боту квитанцию об оплате: скриншот или фото.\nНа квитанции должны быть четко видны: дата, время и сумма платежа.")
+    await state.set_state(PaymentState.awaiting_screenshot)
+
+
+# ========== ОБРАБОТЧИК СКРИНШОТОВ ==========
+@dp.message(PaymentState.awaiting_screenshot, F.photo)
+async def handle_screenshot(message: types.Message, state: FSMContext):
+    data = await state.get_data()
+    price = data.get("current_price", 0)
+    idx = data.get("selected_tariff_index", 0)
+    tariff_name = TARIFFS[idx][0] if idx < len(TARIFFS) else "тариф"
+
+    photo_id = message.photo[-1].file_id
+
+    add_payment_request(message.from_user.id, tariff_name, price, photo_id)
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="✅ Подтвердить",
+                                 callback_data=f"approve_payment_{message.from_user.id}_{price}_{tariff_name}"),
+            InlineKeyboardButton(text="❌ Отказать", callback_data=f"reject_payment_{message.from_user.id}")
+        ],
+        [InlineKeyboardButton(text="💬 Написать", url=f"tg://user?id={message.from_user.id}")]
+    ])
+
+    await bot.send_photo(
+        MODERATOR_CHAT_ID,
+        photo=photo_id,
+        caption=f"🔔 НОВАЯ ОПЛАТА (РУЧНАЯ ПРОВЕРКА)\n"
+                f"👤 Пользователь: @{message.from_user.username or message.from_user.first_name} (ID: {message.from_user.id})\n"
+                f"📦 Тариф: {tariff_name}\n"
+                f"💰 Сумма: {price:.2f} ₽",
+        reply_markup=keyboard
+    )
+
+    await message.answer(
+        f"✅ Спасибо! Ваша квитанция отправлена модератору.\n\n"
+        f"🕐 Доступ будет выдан в течение 30 минут после подтверждения оплаты.\n\n"
+        f"👨‍💼 С вами свяжется администратор.\n\n"
+        f"Спасибо за доверие!\n\n"
+        f"💡 У вас есть 24 часа, чтобы попробовать тариф. Если не подойдёт — вернём деньги. Запросить возврат можно в разделе «Мои покупки»."
+    )
+    await state.clear()
+
+
+# ========== ПОДТВЕРЖДЕНИЕ ОПЛАТ АДМИНОМ ==========
+@dp.callback_query(F.data.startswith("approve_payment_"))
+async def approve_payment(callback: types.CallbackQuery):
+    if callback.from_user.id != MODERATOR_CHAT_ID:
+        await callback.answer("⛔ У вас нет прав.", show_alert=True)
+        return
+
+    parts = callback.data.split("_")
+    user_id = int(parts[2])
+    price = float(parts[3])
+    tariff_name = "_".join(parts[4:])
+
+    add_purchase(user_id, tariff_name, price, "address")
+
+    await callback.message.edit_caption(
+        callback.message.caption + "\n\n✅ ОПЛАЧЕНО"
+    )
+
+    await callback.answer("✅ Оплата подтверждена!", show_alert=True)
+
+    try:
+        await bot.send_message(
+            user_id,
+            f"✅ Ваша оплата подтверждена!\n\n"
+            f"📦 Тариф: {tariff_name}\n"
+            f"💰 Сумма: {price:.2f} ₽\n\n"
+            f"🕐 Доступ будет выдан в течение 30 минут — готовлю для вас отдельный канал.\n\n"
+            f"Спасибо за доверие!\n\n"
+            f"💡 У вас есть 24 часа, чтобы попробовать тариф. Если не подойдёт — вернём деньги. Запросить возврат можно в разделе «Мои покупки»."
+        )
+    except:
+        pass
+
+
+@dp.callback_query(F.data.startswith("reject_payment_"))
+async def reject_payment(callback: types.CallbackQuery):
+    if callback.from_user.id != MODERATOR_CHAT_ID:
+        await callback.answer("⛔ У вас нет прав.", show_alert=True)
+        return
+
+    user_id = int(callback.data.split("_")[2])
+
+    await callback.message.edit_caption(
+        callback.message.caption + "\n\n❌ ОТКАЗАНО"
+    )
+
+    await callback.answer("❌ Оплата отклонена!", show_alert=True)
+
+    try:
+        await bot.send_message(
+            user_id,
+            f"❌ Ваша оплата не подтверждена.\n\n"
+            f"Пожалуйста, проверьте правильность реквизитов и попробуйте снова.\n\n"
+            f"💬 По всем вопросам: @Nastia_sup"
+        )
+    except:
+        pass
 
 
 # ========== МОИ ПОКУПКИ ==========
@@ -1156,7 +974,7 @@ async def tariffs_from_purchases(callback: types.CallbackQuery):
     )
 
 
-# ========== ПОДДЕРЖКА, ПРЕВЬЮ, ИНСТРУКЦИЯ ==========
+# ========== ОСТАЛЬНЫЕ КНОПКИ ==========
 @dp.message(F.text == "📲 Поддержка 👩🏻‍💻")
 async def support(message: types.Message):
     await message.answer(
@@ -1178,26 +996,6 @@ async def proofs_button(message: types.Message):
     )
 
 
-@dp.message(F.text == "CryptoBot инструкция оплаты✔️")
-async def cryptobot_instruction(message: types.Message):
-    text = (
-        "<b>Мы для вас подготовили короткую инструкцию, как оплатить любой тариф криптой через CryptoBot буквально в пару кликов! 🚀</b>\n\n"
-        "✦ Открываем <a href=\"https://t.me/send?start=r-fpc8p\">CryptoBot</a> → переходим в раздел <a href=\"https://t.me/send?start=r-fpc8p-market\">P2P</a> 🤖\n"
-        "✦ В разделе P2P жмем <b>«Купить»</b> 🛒\n"
-        "✦ Выбираем монету, которую принимает бот к оплате (лучше всего USDT TRC20)💰\n"
-        "✦ Указываем удобный способ оплаты → ищем объявление с подходящим объемом 🔍\n"
-        "✦ Нашли? Жмем на него и выбираем «Купить» ✅\n"
-        "✦ Вписываем сумму в рублях, которую хотим купить 📝\n"
-        "✦ После подтверждения от продавца получаем реквизиты для перевода 💳\n"
-        "✦ Переводим деньги и прикрепляем чек 🧾\n"
-        "✦ Крипта у вас на счету! 🎉\n\n"
-        '<a href="https://t.me/+pyg0bJFTrVdhZjMy">📘 Более подробная инструкция по ссылке</a>\n\n'
-        "Возвращаемся к нашем боту и оплачиваем тариф 🔥"
-    )
-    await message.answer(text, parse_mode="HTML")
-
-
-# ========== РЕФЕРАЛЬНАЯ СИСТЕМА ==========
 @dp.message(F.text == "Реф. работа 💸")
 async def referral_menu(message: types.Message):
     user_id = message.from_user.id
@@ -1226,6 +1024,81 @@ async def referral_menu(message: types.Message):
         [InlineKeyboardButton(text="💎 Оплатить тариф с баланса", callback_data="pay_with_balance_from_referral")]
     ])
     await message.answer(text, parse_mode="HTML", reply_markup=keyboard)
+
+
+@dp.message(F.text == "CryptoBot инструкция оплаты✔️")
+async def cryptobot_instruction(message: types.Message):
+    text = (
+        "<b>Мы для вас подготовили короткую инструкцию, как оплатить любой тариф криптой через CryptoBot буквально в пару кликов! 🚀</b>\n\n"
+        "✦ Открываем <a href=\"https://t.me/send?start=r-fpc8p\">CryptoBot</a> → переходим в раздел <a href=\"https://t.me/send?start=r-fpc8p-market\">P2P</a> 🤖\n"
+        "✦ В разделе P2P жмем <b>«Купить»</b> 🛒\n"
+        "✦ Выбираем монету, которую принимает бот к оплате (лучше всего USDT TRC20)💰\n"
+        "✦ Указываем удобный способ оплаты → ищем объявление с подходящим объемом 🔍\n"
+        "✦ Нашли? Жмем на него и выбираем «Купить» ✅\n"
+        "✦ Вписываем сумму в рублях, которую хотим купить 📝\n"
+        "✦ После подтверждения от продавца получаем реквизиты для перевода 💳\n"
+        "✦ Переводим деньги и прикрепляем чек 🧾\n"
+        "✦ Крипта у вас на счету! 🎉\n\n"
+        '<a href="https://t.me/+pyg0bJFTrVdhZjMy">📘 Более подробная инструкция по ссылке</a>\n\n'
+        "Возвращаемся к нашем боту и оплачиваем тариф 🔥"
+    )
+    await message.answer(text, parse_mode="HTML")
+
+
+# ========== ВЫВОД СРЕДСТВ ==========
+@dp.callback_query(F.data == "withdraw_request")
+async def withdraw_request(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
+    data = get_user_data(user_id)
+
+    if data:
+        balance, referral_count = data
+    else:
+        balance, referral_count = 0, 0
+
+    if balance < 500:
+        await callback.answer(f"❌ Минимальная сумма для вывода: 500 RUB. Ваш баланс: {balance:.0f} RUB",
+                              show_alert=True)
+        return
+
+    if referral_count < 1:
+        await callback.answer(f"❌ Минимальное количество рефералов для вывода: 1. Ваше количество: {referral_count}",
+                              show_alert=True)
+        return
+
+    add_withdraw_request(user_id, balance)
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="✅ Принять", callback_data=f"approve_withdraw_{user_id}_{balance}"),
+            InlineKeyboardButton(text="❌ Отказать", callback_data=f"reject_withdraw_{user_id}")
+        ],
+        [InlineKeyboardButton(text="💬 Написать", url=f"tg://user?id={user_id}")]
+    ])
+
+    await bot.send_message(
+        MODERATOR_CHAT_ID,
+        f"🔔 НОВАЯ ЗАЯВКА НА ВЫВОД\n"
+        f"👤 Пользователь: @{callback.from_user.username or callback.from_user.first_name} (ID: {user_id})\n"
+        f"💰 Сумма: {balance:.0f} RUB\n"
+        f"👥 Рефералов: {referral_count}",
+        reply_markup=keyboard
+    )
+
+    await callback.message.answer(
+        f"✅ Заявка на вывод принята!\n\n"
+        f"💰 Сумма: {balance:.0f} RUB\n\n"
+        f"👨‍💼 Администратор свяжется с вами в ближайшее время для отправки средств.\n\n"
+        f"💬 По вопросам: @Nastia_sup"
+    )
+
+
+@dp.callback_query(F.data == "my_referrals")
+async def my_referrals(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
+    data = get_user_data(user_id)
+    referral_count = data[1] if data else 0
+    await callback.answer(f"👥 Ваши рефералы: {referral_count}", show_alert=True)
 
 
 @dp.callback_query(F.data == "pay_with_balance_from_referral")
@@ -1289,114 +1162,111 @@ async def process_balance_tariff(callback: types.CallbackQuery, state: FSMContex
         )
 
 
-@dp.callback_query(F.data == "withdraw_request")
-async def withdraw_request(callback: types.CallbackQuery):
-    user_id = callback.from_user.id
-    data = get_user_data(user_id)
+@dp.callback_query(F.data.startswith("refund_"))
+async def refund_request(callback: types.CallbackQuery):
+    await callback.answer()
+    purchase_id = int(callback.data.split("_")[1])
 
-    if data:
-        balance, referral_count = data
-    else:
-        balance, referral_count = 0, 0
+    cursor.execute('SELECT refunded, user_id, tariff_name FROM purchases WHERE id = ?', (purchase_id,))
+    result = cursor.fetchone()
 
-    if balance < 500:
-        await callback.answer(f"❌ Минимальная сумма для вывода: 500 RUB. Ваш баланс: {balance:.0f} RUB",
-                              show_alert=True)
+    if not result:
+        await callback.message.answer("❌ Покупка не найдена.")
         return
 
-    if referral_count < 1:
-        await callback.answer(f"❌ Минимальное количество рефералов для вывода: 1. Ваше количество: {referral_count}",
-                              show_alert=True)
+    refunded, user_id, tariff_name = result
+
+    if refunded:
+        await callback.message.answer("❌ Возврат по этому тарифу уже был сделан.")
         return
 
-    add_withdraw_request(user_id, balance)
+    cursor.execute('SELECT purchased_at FROM purchases WHERE id = ?', (purchase_id,))
+    purchased_at = cursor.fetchone()[0]
+    time_diff = datetime.now() - datetime.fromisoformat(purchased_at.replace(' ', 'T'))
 
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(text="✅ Принять", callback_data=f"approve_withdraw_{user_id}_{balance}"),
-            InlineKeyboardButton(text="❌ Отказать", callback_data=f"reject_withdraw_{user_id}")
-        ],
-        [InlineKeyboardButton(text="💬 Написать", url=f"tg://user?id={user_id}")]
-    ])
+    if time_diff.total_seconds() > 24 * 3600:
+        await callback.message.answer("❌ Срок возврата истёк (24 часа).")
+        return
 
     await bot.send_message(
         MODERATOR_CHAT_ID,
-        f"🔔 НОВАЯ ЗАЯВКА НА ВЫВОД\n"
-        f"👤 Пользователь: @{callback.from_user.username or callback.from_user.first_name} (ID: {user_id})\n"
-        f"💰 Сумма: {balance:.0f} RUB\n"
-        f"👥 Рефералов: {referral_count}",
-        reply_markup=keyboard
+        f"🔔 ЗАЯВКА НА ВОЗВРАТ\n"
+        f"👤 Пользователь: @{callback.from_user.username or callback.from_user.first_name} (ID: {callback.from_user.id})\n"
+        f"📦 Тариф: {tariff_name}\n"
+        f"🆔 ID покупки: {purchase_id}\n\n"
+        f"Свяжитесь с пользователем для возврата средств."
     )
 
-    await callback.message.answer(
-        f"✅ Заявка на вывод принята!\n\n"
-        f"💰 Сумма: {balance:.0f} RUB\n\n"
-        f"👨‍💼 Администратор свяжется с вами в ближайшее время для отправки средств.\n\n"
-        f"💬 По вопросам: @Nastia_sup"
-    )
-
-
-@dp.callback_query(F.data == "my_referrals")
-async def my_referrals(callback: types.CallbackQuery):
-    user_id = callback.from_user.id
-    data = get_user_data(user_id)
-    referral_count = data[1] if data else 0
-    await callback.answer(f"👥 Ваши рефералы: {referral_count}", show_alert=True)
-
-
-@dp.callback_query(F.data.startswith("approve_withdraw_"))
-async def approve_withdraw(callback: types.CallbackQuery):
-    if callback.from_user.id != MODERATOR_CHAT_ID:
-        await callback.answer("⛔ У вас нет прав.", show_alert=True)
-        return
-
-    parts = callback.data.split("_")
-    user_id = int(parts[2])
-    amount = float(parts[3])
-
-    cursor.execute('UPDATE users SET balance = 0 WHERE user_id = ?', (user_id,))
+    cursor.execute('UPDATE purchases SET refunded = 1 WHERE id = ?', (purchase_id,))
     conn.commit()
 
-    await callback.message.edit_text(
-        callback.message.text + f"\n\n✅ ЗАЯВКА ПРИНЯТА\n💰 Сумма: {amount:.0f} RUB отправлена пользователю."
+    await callback.message.answer(
+        "✅ Заявка на возврат отправлена администратору.\n\n"
+        "👨‍💼 С вами свяжутся в ближайшее время.\n"
+        "💬 По вопросам: @Nastia_sup"
     )
 
-    await callback.answer("✅ Заявка принята! Баланс обнулён.", show_alert=True)
-
-    try:
-        await bot.send_message(
-            user_id,
-            f"✅ Ваша заявка на вывод {amount:.0f} RUB принята!\n\n"
-            f"💰 Средства будут отправлены в ближайшее время.\n\n"
-            f"💬 По вопросам: @Nastia_sup"
-        )
-    except:
-        pass
+    await callback.message.edit_reply_markup(reply_markup=None)
 
 
-@dp.callback_query(F.data.startswith("reject_withdraw_"))
-async def reject_withdraw(callback: types.CallbackQuery):
-    if callback.from_user.id != MODERATOR_CHAT_ID:
-        await callback.answer("⛔ У вас нет прав.", show_alert=True)
-        return
+# ========== TELEGRAM STARS (ОСНОВНАЯ ОПЛАТА) ==========
+@dp.callback_query(F.data == "stars_pay_invoice")
+async def stars_invoice(callback: types.CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    price = data.get("stars_price", 0)
+    tariff_name = data.get("stars_tariff_name", "тариф")
+    stars = get_stars_amount(price)
 
-    user_id = int(callback.data.split("_")[2])
+    await bot.send_invoice(
+        chat_id=callback.from_user.id,
+        title=f"Оплата тарифа",
+        description=f"Тариф: {tariff_name}\nСумма: {price:.2f} ₽",
+        payload=f"stars_payment_{int(price * 100)}",
+        provider_token="",
+        currency="XTR",
+        prices=[LabeledPrice(label="Telegram Stars", amount=stars)],
+        start_parameter="stars_payment"
+    )
+    await callback.answer("Счёт создан! После оплаты нажмите «Проверить оплату»")
 
-    await callback.message.edit_text(
-        callback.message.text + "\n\n❌ ЗАЯВКА ОТКЛОНЕНА"
+
+@dp.callback_query(F.data == "check_stars_payment")
+async def check_stars_payment(callback: types.CallbackQuery):
+    await callback.answer("⏳ Платёж ещё не поступил. Откройте кнопку оплаты и подтвердите в Telegram.", show_alert=True)
+
+
+@dp.pre_checkout_query()
+async def pre_checkout_handler(pre_checkout_query: PreCheckoutQuery):
+    await pre_checkout_query.answer(ok=True)
+
+
+@dp.message(F.successful_payment)
+async def successful_payment_handler(message: types.Message, state: FSMContext):
+    data = await state.get_data()
+    price = data.get("stars_price", 0)
+    idx = data.get("stars_tariff_idx", 0)
+    tariff_name = TARIFFS[idx][0] if idx < len(TARIFFS) else "тариф"
+
+    add_purchase(message.from_user.id, tariff_name, price, "stars")
+
+    await message.answer(
+        f"✅ Оплата подтверждена!\n\n"
+        f"📦 Тариф: {tariff_name}\n"
+        f"💰 Сумма: {price:.2f} ₽\n\n"
+        f"🕐 Доступ будет выдан в течение 30 минут — готовлю для вас отдельный канал.\n\n"
+        f"👨‍💼 С вами свяжется администратор.\n\n"
+        f"Спасибо за доверие!\n\n"
+        f"💡 У вас есть 24 часа, чтобы попробовать тариф. Если не подойдёт — вернём деньги. Запросить возврат можно в разделе «Мои покупки»."
     )
 
-    await callback.answer("❌ Заявка отклонена!", show_alert=True)
-
-    try:
-        await bot.send_message(
-            user_id,
-            f"❌ Ваша заявка на вывод отклонена.\n\n"
-            f"Пожалуйста, проверьте условия вывода и попробуйте снова.\n\n"
-            f"💬 По вопросам: @Nastia_sup"
-        )
-    except:
-        pass
+    await bot.send_message(
+        MODERATOR_CHAT_ID,
+        f"🔔 НОВАЯ ОПЛАТА (Telegram Stars)\n"
+        f"👤 Пользователь: @{message.from_user.username or message.from_user.first_name} (ID: {message.from_user.id})\n"
+        f"📦 Тариф: {tariff_name}\n"
+        f"💰 Сумма: {price:.2f} ₽\n"
+        f"Нужно выдать доступ в канал."
+    )
 
 
 # ========== АДМИН-ПАНЕЛЬ ==========
@@ -1568,6 +1438,83 @@ async def broadcast_message(message: types.Message):
             fail += 1
 
     await status_msg.edit_text(f"✅ Рассылка завершена!\n📨 Доставлено: {success}\n❌ Не доставлено: {fail}")
+
+
+# ========== ОПЛАТА С БАЛАНСА ==========
+@dp.callback_query(F.data == "pay_with_balance_check")
+async def pay_with_balance_check(callback: types.CallbackQuery, state: FSMContext):
+    await callback.answer()
+    user_id = callback.from_user.id
+    data = get_user_data(user_id)
+    balance = data[0] if data else 0
+
+    if balance <= 0:
+        await callback.message.answer(
+            "❌ У вас нет средств на балансе.\n\n💡 Приглашайте друзей — получайте 40% от их покупок!")
+        return
+
+    await callback.message.answer(
+        f"💎 *Выберите тариф для оплаты с баланса:*\n\n"
+        f"💰 *Ваш баланс:* {balance:.0f} RUB",
+        parse_mode="Markdown",
+        reply_markup=get_tariffs_keyboard_with_balance()
+    )
+    await state.update_data(payment_method="balance_from_pay")
+
+
+@dp.callback_query(F.data.startswith("approve_withdraw_"))
+async def approve_withdraw(callback: types.CallbackQuery):
+    if callback.from_user.id != MODERATOR_CHAT_ID:
+        await callback.answer("⛔ У вас нет прав.", show_alert=True)
+        return
+
+    parts = callback.data.split("_")
+    user_id = int(parts[2])
+    amount = float(parts[3])
+
+    cursor.execute('UPDATE users SET balance = 0 WHERE user_id = ?', (user_id,))
+    conn.commit()
+
+    await callback.message.edit_text(
+        callback.message.text + f"\n\n✅ ЗАЯВКА ПРИНЯТА\n💰 Сумма: {amount:.0f} RUB отправлена пользователю."
+    )
+
+    await callback.answer("✅ Заявка принята! Баланс обнулён.", show_alert=True)
+
+    try:
+        await bot.send_message(
+            user_id,
+            f"✅ Ваша заявка на вывод {amount:.0f} RUB принята!\n\n"
+            f"💰 Средства будут отправлены в ближайшее время.\n\n"
+            f"💬 По вопросам: @Nastia_sup"
+        )
+    except:
+        pass
+
+
+@dp.callback_query(F.data.startswith("reject_withdraw_"))
+async def reject_withdraw(callback: types.CallbackQuery):
+    if callback.from_user.id != MODERATOR_CHAT_ID:
+        await callback.answer("⛔ У вас нет прав.", show_alert=True)
+        return
+
+    user_id = int(callback.data.split("_")[2])
+
+    await callback.message.edit_text(
+        callback.message.text + "\n\n❌ ЗАЯВКА ОТКЛОНЕНА"
+    )
+
+    await callback.answer("❌ Заявка отклонена!", show_alert=True)
+
+    try:
+        await bot.send_message(
+            user_id,
+            f"❌ Ваша заявка на вывод отклонена.\n\n"
+            f"Пожалуйста, проверьте условия вывода и попробуйте снова.\n\n"
+            f"💬 По вопросам: @Nastia_sup"
+        )
+    except:
+        pass
 
 
 # ========== ЗАПУСК ==========
