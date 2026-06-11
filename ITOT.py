@@ -34,7 +34,7 @@ print("✅ Flask-сервер запущен на порту 10000")
 # ==================================================================
 
 # ========== НАСТРОЙКИ ==========
-TOKEN = "8687336187:AAFryz-2OqFc_rijVGNpumL7qHe72pvVBUI"
+TOKEN = "8659138133:AAGHE6O02blJvGSKoGQAUwgZCMEKcftOZBU"
 MODERATOR_CHAT_ID = 8315293936
 CRYPTOBOT_TOKEN = "582195:AAOKdczYX9Dq8QNvpJ1hY23ft33N6nvBqGk"
 GROUP_URL = "https://t.me/+RN8kV8FAVAg3ZGU6"
