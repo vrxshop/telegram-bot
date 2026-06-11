@@ -40,7 +40,7 @@ if not TOKEN:
 
 MODERATOR_CHAT_ID = 8315293936
 CRYPTOBOT_TOKEN = "582195:AAOKdczYX9Dq8QNvpJ1hY23ft33N6nvBqGk"
-GROUP_URL = "https://t.me/+V5ej4_1uFMk0YmU6"
+GROUP_URL = "https://t.me/+qYXlqkHfN2sxMTZi"
 GROUP_ID = -1003837687191
 
 logging.basicConfig(level=logging.INFO)
