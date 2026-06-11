@@ -320,16 +320,24 @@ async def cmd_start(message: types.Message, state: FSMContext):
 
     user_id = message.from_user.id
     
-    # ===== ПРОВЕРКА ЗАЯВОК УБРАНА =====
-    # Регистрируем пользователя, если его нет в базе
-    cursor.execute('SELECT user_id FROM users WHERE user_id = ?', (user_id,))
-    user_exists = cursor.fetchone() is not None
-    
-    if not user_exists:
-        register_user(user_id, referrer_id)
-    
-    await show_main_menu(message, state)
-    # =================================
+    # ===== ПРОВЕРКА ЗАЯВОК (РАБОТАЕТ) =====
+    if has_join_request(user_id):
+        cursor.execute('SELECT user_id FROM users WHERE user_id = ?', (user_id,))
+        user_exists = cursor.fetchone() is not None
+        if not user_exists:
+            register_user(user_id, referrer_id)
+        await show_main_menu(message, state)
+    else:
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="📢 ПОДАТЬ ЗАЯВКУ", url=GROUP_URL)],
+            [InlineKeyboardButton(text="✅ Я подал(а) заявку", callback_data="check_join_request")]
+        ])
+        await message.answer(
+            "📢 Для доступа к боту необходимо подать заявку на вступление в нашу группу.\n\n"
+            "После подачи заявки нажмите кнопку «Я подал(а) заявку».",
+            reply_markup=keyboard
+        )
+    # =======================================
 
 
 @dp.callback_query(F.data == "check_join_request")
