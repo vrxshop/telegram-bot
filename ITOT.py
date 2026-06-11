@@ -1,8 +1,8 @@
+import os
 import asyncio
 import logging
 import requests
 import sqlite3
-import os
 from decimal import Decimal
 from datetime import datetime
 from aiogram import Bot, Dispatcher, types, F
@@ -13,10 +13,9 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 
-# Добавь ЭТО в самое начало файла (после всех импортов)
+# ========== Flask-ЗАГЛУШКА ==========
 from flask import Flask
 import threading
-import os
 
 flask_app = Flask(__name__)
 
@@ -29,21 +28,19 @@ def run_flask():
     port = int(os.environ.get("PORT", 10000))
     flask_app.run(host='0.0.0.0', port=port)
 
-# Запускаем Flask в отдельном потоке
 threading.Thread(target=run_flask, daemon=True).start()
-
-# ====== ПРОКСИ (ВЫКЛЮЧЕН, РАСКОММЕНТИРУЙ ЕСЛИ НУЖЕН) ======
-# import socks
-# import socket
-# socks.set_default_proxy(socks.SOCKS5, "127.0.0.1", 10808)
-# socket.socket = socks.socksocket
-# =======================================================
+print("✅ Flask-сервер запущен")
+# ===================================
 
 # ========== НАСТРОЙКИ ==========
 TOKEN = os.environ.get("BOT_TOKEN")
+if not TOKEN:
+    print("❌ ОШИБКА: BOT_TOKEN не найден!")
+    exit(1)
+
 MODERATOR_CHAT_ID = 8315293936
 CRYPTOBOT_TOKEN = "582195:AAOKdczYX9Dq8QNvpJ1hY23ft33N6nvBqGk"
-GROUP_URL = "https://t.me/+V5ej4_1uFMk0YmU6"
+GROUP_URL = "https://t.me/+RN8kV8FAVAg3ZGU6"
 GROUP_ID = -1003837687191
 
 logging.basicConfig(level=logging.INFO)
@@ -320,34 +317,25 @@ async def cmd_start(message: types.Message, state: FSMContext):
         referrer_id = None
 
     await state.update_data(referrer_id=referrer_id)
-    user_id = message.from_user.id
 
-    if has_join_request(user_id):
-        cursor.execute('SELECT user_id FROM users WHERE user_id = ?', (user_id,))
-        user_exists = cursor.fetchone() is not None
-        if not user_exists:
-            register_user(user_id, referrer_id)
-        await show_main_menu(message, state)
-    else:
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📢 ПОДАТЬ ЗАЯВКУ", url=GROUP_URL)],
-            [InlineKeyboardButton(text="✅ Я подал(а) заявку", callback_data="check_join_request")]
-        ])
-        await message.answer(
-            "📢 Для доступа к боту необходимо подать заявку на вступление в нашу группу.\n\n"
-            "После подачи заявки нажмите кнопку «Я подал(а) заявку».",
-            reply_markup=keyboard
-        )
+    user_id = message.from_user.id
+    
+    # ===== ПРОВЕРКА ЗАЯВОК УБРАНА =====
+    # Регистрируем пользователя, если его нет в базе
+    cursor.execute('SELECT user_id FROM users WHERE user_id = ?', (user_id,))
+    user_exists = cursor.fetchone() is not None
+    
+    if not user_exists:
+        register_user(user_id, referrer_id)
+    
+    await show_main_menu(message, state)
+    # =================================
 
 
 @dp.callback_query(F.data == "check_join_request")
 async def check_join_request(callback: types.CallbackQuery, state: FSMContext):
-    user_id = callback.from_user.id
-    if has_join_request(user_id):
-        await callback.message.delete()
-        await show_main_menu(callback.message, state)
-    else:
-        await callback.answer("❌ Вы ещё не подали заявку. Пожалуйста, подайте заявку в группу.", show_alert=True)
+    # Эта функция больше не нужна, но оставим для совместимости
+    await show_main_menu(callback.message, state)
 
 
 @dp.chat_join_request()
@@ -379,6 +367,7 @@ async def show_main_menu(message: types.Message, state: FSMContext):
     await state.clear()
 
 
+# ========== ОСТАЛЬНЫЕ ОБРАБОТЧИКИ ==========
 @dp.callback_query(F.data.startswith("tariff_"))
 async def process_tariff(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
@@ -444,26 +433,430 @@ async def start_payment(callback: types.CallbackQuery, state: FSMContext):
     await state.update_data(current_price=price)
 
 
-# ========== ОБРАБОТЧИК СБП ==========
-@dp.callback_query(F.data == "pay_sbp")
-async def pay_sbp_manager(callback: types.CallbackQuery):
+@dp.callback_query(F.data == "pay_with_balance_check")
+async def pay_with_balance_check(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
+    user_id = callback.from_user.id
+    data = get_user_data(user_id)
+    balance = data[0] if data else 0
+
+    if balance <= 0:
+        await callback.message.answer(
+            "❌ У вас нет средств на балансе.\n\n💡 Приглашайте друзей — получайте 40% от их покупок!")
+        return
+
+    await callback.message.answer(
+        f"💎 *Выберите тариф для оплаты с баланса:*\n\n"
+        f"💰 *Ваш баланс:* {balance:.0f} RUB",
+        parse_mode="Markdown",
+        reply_markup=get_tariffs_keyboard_with_balance()
+    )
+    await state.update_data(payment_method="balance_from_pay")
+
+
+@dp.callback_query(F.data.startswith("balance_tariff_"))
+async def process_balance_tariff(callback: types.CallbackQuery, state: FSMContext):
+    idx = int(callback.data.split("_")[2])
+    tariff_name, tariff_price, description = TARIFFS[idx]
+    user_id = callback.from_user.id
+    data = get_user_data(user_id)
+    balance = data[0] if data else 0
+
+    if balance >= tariff_price:
+        cursor.execute('UPDATE users SET balance = balance - ? WHERE user_id = ?', (tariff_price, user_id))
+        conn.commit()
+        add_purchase(user_id, tariff_name, tariff_price, "balance")
+
+        await callback.message.answer(
+            f"✅ Тариф *{tariff_name}* успешно оплачен с баланса!\n\n"
+            f"💰 Остаток на балансе: {balance - tariff_price:.0f} RUB\n\n"
+            f"🕐 Доступ будет выдан в течение 30 минут.\n\n"
+            f"👨‍💼 С вами свяжется администратор.",
+            parse_mode="Markdown"
+        )
+        await bot.send_message(
+            MODERATOR_CHAT_ID,
+            f"🔔 ОПЛАТА С БАЛАНСА\n"
+            f"👤 Пользователь: @{callback.from_user.username or callback.from_user.first_name} (ID: {user_id})\n"
+            f"📦 Тариф: {tariff_name}\n"
+            f"💰 Сумма: {tariff_price:.2f} ₽\n"
+            f"Остаток: {balance - tariff_price:.0f} ₽"
+        )
+    else:
+        need = tariff_price - balance
+        await callback.message.answer(
+            f"❌ Недостаточно средств на балансе.\n\n"
+            f"📦 Тариф: {tariff_name}\n"
+            f"💰 Цена: {tariff_price:.0f} ₽\n"
+            f"💳 Ваш баланс: {balance:.0f} ₽\n"
+            f"💸 Не хватает: {need:.0f} ₽\n\n"
+            f"💡 Приглашайте друзей или долейте криптой через обычную оплату."
+        )
+
+
+# ========== TELEGRAM STARS ==========
+@dp.callback_query(F.data == "pay_stars")
+async def pay_stars(callback: types.CallbackQuery, state: FSMContext):
+    await callback.answer()
+    data = await state.get_data()
+    price = data.get("current_price", 0)
+    stars = get_stars_amount(price)
+    idx = data.get("selected_tariff_index", 0)
+    tariff_name = TARIFFS[idx][0] if idx < len(TARIFFS) else "выбранный тариф"
 
     text = (
-        "💳 **Оплата через СБП, переводом на карту или по QR-коду**\n\n"
-        "1️⃣ Напишите нашему менеджеру: **@Nastia_sup**\n"
-        "2️⃣ Укажите в сообщении **название тарифа**, который хотите оплатить.\n"
-        "3️⃣ Менеджер отправит вам реквизиты или QR-код.\n"
-        "4️⃣ После оплаты пришлите скриншот менеджеру — он сразу выдаст доступ.\n\n"
-        "📌 Доступ выдается только после подтверждения оплаты (обычно 1-2 минуты).\n\n"
-        "❓ Если возникли вопросы — пишите, поможем."
+        f"⭐️ Оплата Telegram Stars\n\n"
+        f"📦 Тариф: {tariff_name}\n"
+        f"💰 К оплате: {price:.2f} ₽\n"
+        f"⭐️ Звёзд: {stars}\n"
+        f"⏳ Счёт активен: 30 мин\n\n"
+        f"👇 Нажмите кнопку ниже — откроется окно подтверждения Telegram, после оплаты вернитесь сюда и нажмите «Проверить оплату»."
     )
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="👈 Назад к способам оплаты", callback_data="back_to_payment_methods")]
+        [InlineKeyboardButton(text=f"⭐ Оплатить звёздами ({stars} ⭐ ≈ {price:.0f} ₽)",
+                              callback_data="stars_pay_invoice", style="success")],
+        [InlineKeyboardButton(text="🔄 Проверить оплату", callback_data="check_stars_payment", style="primary")],
+        [InlineKeyboardButton(text="👈 Назад к способам оплаты", callback_data="back_to_payment_methods",
+                              style="danger")]
+    ])
+    await callback.message.edit_text(text, parse_mode="HTML", reply_markup=keyboard)
+    await state.update_data(stars_price=price, stars_tariff_name=tariff_name, stars_tariff_idx=idx)
+
+
+@dp.callback_query(F.data == "stars_pay_invoice")
+async def stars_invoice(callback: types.CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    price = data.get("stars_price", 0)
+    tariff_name = data.get("stars_tariff_name", "тариф")
+    stars = get_stars_amount(price)
+
+    await bot.send_invoice(
+        chat_id=callback.from_user.id,
+        title=f"Оплата тарифа",
+        description=f"Тариф: {tariff_name}\nСумма: {price:.2f} ₽",
+        payload=f"stars_payment_{int(price * 100)}",
+        provider_token="",
+        currency="XTR",
+        prices=[LabeledPrice(label="Telegram Stars", amount=stars)],
+        start_parameter="stars_payment"
+    )
+    await callback.answer("Счёт создан! После оплаты нажмите «Проверить оплату»")
+
+
+@dp.callback_query(F.data == "check_stars_payment")
+async def check_stars_payment(callback: types.CallbackQuery):
+    await callback.answer("⏳ Платеж еще не поступил. Откройте кнопку оплаты и подтвердите в Telegram.", show_alert=True)
+
+
+@dp.pre_checkout_query()
+async def pre_checkout_handler(pre_checkout_query: PreCheckoutQuery):
+    await pre_checkout_query.answer(ok=True)
+
+
+@dp.message(F.successful_payment)
+async def successful_payment_handler(message: types.Message, state: FSMContext):
+    data = await state.get_data()
+    price = data.get("stars_price", 0)
+    idx = data.get("stars_tariff_idx", 0)
+    tariff_name = TARIFFS[idx][0] if idx < len(TARIFFS) else "тариф"
+
+    add_purchase(message.from_user.id, tariff_name, price, "stars")
+
+    await message.answer(
+        f"✅ Оплата подтверждена!\n\n"
+        f"📦 Тариф: {tariff_name}\n"
+        f"💰 Сумма: {price:.2f} ₽\n\n"
+        f"🕐 Доступ будет выдан в течение 30 минут — готовлю для вас отдельный канал.\n\n"
+        f"👨‍💼 С вами свяжется администратор.\n\n"
+        f"Спасибо за доверие!\n\n"
+        f"💡 У вас есть 24 часа, чтобы попробовать тариф. Если не подойдёт — вернём деньги. Запросить возврат можно в разделе «Мои покупки»."
+    )
+
+    await bot.send_message(
+        MODERATOR_CHAT_ID,
+        f"🔔 НОВАЯ ОПЛАТА (Telegram Stars)\n"
+        f"👤 Пользователь: @{message.from_user.username or message.from_user.first_name} (ID: {message.from_user.id})\n"
+        f"📦 Тариф: {tariff_name}\n"
+        f"💰 Сумма: {price:.2f} ₽\n"
+        f"Нужно выдать доступ в канал."
+    )
+
+
+# ========== CRYPTOBOT ==========
+@dp.callback_query(F.data == "pay_cryptobot")
+async def pay_cryptobot(callback: types.CallbackQuery, state: FSMContext):
+    await callback.answer("🔄 Создаём счёт...")
+    data = await state.get_data()
+    price_rub = data.get("current_price", 0)
+    idx = data.get("selected_tariff_index", 0)
+    tariff_name = TARIFFS[idx][0] if idx < len(TARIFFS) else "тариф"
+
+    url = "https://pay.crypt.bot/api/createInvoice"
+    headers = {
+        "Crypto-Pay-API-Token": CRYPTOBOT_TOKEN,
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "amount": str(price_rub),
+        "currency_type": "fiat",
+        "fiat": "RUB",
+        "accepted_assets": "USDT,BTC,ETH,TON,BNB,TRX,USDC,LTC,DOGE",
+        "description": f"Райский уголок — {tariff_name}",
+        "expires_in": 3600,
+        "allow_comments": True,
+        "allow_anonymous": True
+    }
+
+    try:
+        response = requests.post(url, headers=headers, json=payload)
+        result = response.json()
+
+        if result.get("ok"):
+            invoice = result["result"]
+            invoice_id = invoice["invoice_id"]
+            bot_invoice_url = invoice["bot_invoice_url"]
+
+            await state.update_data(cryptobot_invoice_id=invoice_id)
+            await state.update_data(cryptobot_price=price_rub)
+            await state.update_data(cryptobot_tariff_idx=idx)
+
+            text = (
+                f"✅ Счёт на оплату через CryptoBot успешно создан. Вы получите доступ к тарифу, как только оплатите его.\n\n"
+                f"🧾 Нажмите кнопку «Перейти к оплате», далее выберите монету и нажмите «Оплатить»\n\n"
+                f"🎯 К оплате: {price_rub:.2f} ₽"
+            )
+            keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="💸 Перейти к оплате 💸", url=bot_invoice_url, style="success")],
+                [InlineKeyboardButton(text="🔄 Проверить оплату", callback_data="check_cryptobot_payment",
+                                      style="primary")],
+                [InlineKeyboardButton(text="👈 Назад к способам оплаты", callback_data="back_to_payment_methods",
+                                      style="danger")]
+            ])
+            await callback.message.edit_text(text, parse_mode="HTML", reply_markup=keyboard)
+        else:
+            error = result.get('error', 'Неизвестная ошибка')
+            await callback.message.answer(f"❌ Ошибка создания счёта: {error}")
+    except Exception as e:
+        await callback.message.answer(f"❌ Ошибка: {e}")
+
+
+@dp.callback_query(F.data == "check_cryptobot_payment")
+async def check_cryptobot_payment(callback: types.CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    invoice_id = data.get("cryptobot_invoice_id")
+    price = data.get("cryptobot_price", 0)
+    idx = data.get("cryptobot_tariff_idx", 0)
+
+    if not invoice_id:
+        await callback.answer("❌ Счёт не найден. Создайте новый.", show_alert=True)
+        return
+
+    tariff_name = TARIFFS[idx][0] if idx < len(TARIFFS) else "тариф"
+
+    url = "https://pay.crypt.bot/api/getInvoices"
+    headers = {"Crypto-Pay-API-Token": CRYPTOBOT_TOKEN}
+    params = {"invoice_ids": invoice_id}
+
+    try:
+        response = requests.get(url, headers=headers, params=params)
+        result = response.json()
+
+        if result.get("ok") and result.get("result"):
+            items = result["result"].get("items", [])
+            if items and len(items) > 0:
+                invoice = items[0]
+                status = invoice.get("status")
+
+                if status == "paid":
+                    add_purchase(callback.from_user.id, tariff_name, price, "cryptobot")
+
+                    await callback.message.answer(
+                        f"✅ Оплата подтверждена!\n\n"
+                        f"📦 Тариф: {tariff_name}\n"
+                        f"💰 Сумма: {price:.2f} ₽\n\n"
+                        f"🕐 Доступ будет выдан в течение 30 минут — готовлю для вас отдельный канал.\n\n"
+                        f"👨‍💼 С вами свяжется администратор.\n\n"
+                        f"Спасибо за доверие!\n\n"
+                        f"💡 У вас есть 24 часа, чтобы попробовать тариф. Если не подойдёт — вернём деньги. Запросить возврат можно в разделе «Мои покупки»."
+                    )
+                    await bot.send_message(
+                        MODERATOR_CHAT_ID,
+                        f"🔔 НОВАЯ ОПЛАТА (CryptoBot)\n"
+                        f"👤 Пользователь: @{callback.from_user.username or callback.from_user.first_name} (ID: {callback.from_user.id})\n"
+                        f"📦 Тариф: {tariff_name}\n"
+                        f"💰 Сумма: {price:.2f} ₽\n"
+                        f"Нужно выдать доступ в канал."
+                    )
+                    await state.update_data(cryptobot_invoice_id=None)
+                elif status == "expired":
+                    await callback.answer("❌ Счёт истёк. Создайте новый.", show_alert=True)
+                else:
+                    await callback.answer("⏳ Платёж ещё не поступил. Попробуйте через минуту.", show_alert=True)
+            else:
+                await callback.answer("❌ Счёт не найден.", show_alert=True)
+        else:
+            await callback.answer("❌ Ошибка проверки. Попробуйте позже.", show_alert=True)
+    except Exception as e:
+        await callback.answer(f"❌ Ошибка: {e}", show_alert=True)
+
+
+# ========== ПЕРЕВОД ПО АДРЕСУ ==========
+@dp.callback_query(F.data == "pay_crypto_address")
+async def pay_crypto_address(callback: types.CallbackQuery, state: FSMContext):
+    await callback.answer()
+    data = await state.get_data()
+    price = data.get("current_price", 0)
+
+    usdt_amount = get_crypto_amount(price, "USDT")
+    ton_amount = get_crypto_amount(price, "TON")
+    btc_amount = get_crypto_amount(price, "BTC")
+    eth_amount = get_crypto_amount(price, "ETH")
+    sol_amount = get_crypto_amount(price, "SOL")
+    trx_amount = get_crypto_amount(price, "TRX")
+
+    text = f"""К оплате: {price:.0f} RUB
+Адреса для переводов:
+🪙 Tether (USDT): ~{usdt_amount} USDT
+🪙 TRC20—TM2UCR8vh6a8fTLphBTHjfztzdTNF8g9j7
+🪙 TON — UQCNVsPIrzyqKVJaAjnG964wW_MTMJLhQP7h2vagOTqN53M5
+🪙 ERC20—0x7e3aB5eDB43c3aD3C1aA8D50e34Ce7044632d371
+🪙 SPL—8KHZyMkJCswJzRbMJqtK5smmrSX7c4SXFvdpDy3uTUhh
+🪙 Toncoin (TON): ~{ton_amount} TON
+UQCNVsPIrzyqKVJaAjnG964wW_MTMJLhQP7h2vagOTqN53M5
+🪙 Solana (SOL): ~{sol_amount} SOL
+8KHZyMkJCswJzRbMJqtK5smmrSX7c4SXFvdpDy3uTUhh
+🪙 Ethereum ETH (ERC20): ~{eth_amount} ETH
+0x7e3aB5eDB43c3aD3C1aA8D50e34Ce7044632d371
+🪙 Bitcoin (BTC): ~{btc_amount} BTC
+bc1q553edzt4dxnkmmg9ny3tgs8rwh5ucv80d6gccd
+🪙 Tron TRX (TRC20): ~{trx_amount} TRX
+TM2UCR8vh6a8fTLphBTHjfztzdTNF8g9j7
+🪙 USD Coin (USDC): ~{usdt_amount} USDC
+🪙 TRC20—0x7e3aB5eDB43c3aD3C1aA8D50e34Ce7044632d371
+🪙 SPL—8KHZyMkJCswJzRbMJqtK5smmrSX7c4SXFvdpDy3uTUhh
+ℹ️ Переводите сумму, равную цене тарифа!"""
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Я оплатил", callback_data="manual_paid_crypto_address", style="success")],
+        [InlineKeyboardButton(text="👈 Назад к способам оплаты", callback_data="back_to_payment_methods",
+                              style="danger")]
+    ])
+    await callback.message.edit_text(text, parse_mode="HTML", reply_markup=keyboard)
+
+
+@dp.callback_query(F.data == "manual_paid_crypto_address")
+async def manual_paid_crypto_address(callback: types.CallbackQuery, state: FSMContext):
+    await callback.answer()
+    await callback.message.answer(
+        "💰 Оплатили?\n\nОтправьте боту квитанцию об оплате: скриншот или фото.\nНа квитанции должны быть четко видны: дата, время и сумма платежа.")
+    await state.set_state(PaymentState.awaiting_screenshot)
+
+
+@dp.callback_query(F.data == "manual_paid_other")
+async def manual_paid_other(callback: types.CallbackQuery, state: FSMContext):
+    await callback.answer()
+    await callback.message.answer(
+        "💰 Оплатили?\n\nОтправьте боту квитанцию об оплате: скриншот или фото.\nНа квитанции должны быть четко видны: дата, время и сумма платежа.")
+    await state.set_state(PaymentState.awaiting_screenshot)
+
+
+@dp.message(PaymentState.awaiting_screenshot, F.photo)
+async def handle_screenshot(message: types.Message, state: FSMContext):
+    data = await state.get_data()
+    price = data.get("current_price", 0)
+    idx = data.get("selected_tariff_index", 0)
+    tariff_name = TARIFFS[idx][0] if idx < len(TARIFFS) else "тариф"
+
+    photo_id = message.photo[-1].file_id
+
+    add_payment_request(message.from_user.id, tariff_name, price, photo_id)
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="✅ Подтвердить",
+                                 callback_data=f"approve_payment_{message.from_user.id}_{price}_{tariff_name}"),
+            InlineKeyboardButton(text="❌ Отказать", callback_data=f"reject_payment_{message.from_user.id}")
+        ],
+        [InlineKeyboardButton(text="💬 Написать", url=f"tg://user?id={message.from_user.id}")]
     ])
 
-    await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=keyboard)
+    await bot.send_photo(
+        MODERATOR_CHAT_ID,
+        photo=photo_id,
+        caption=f"🔔 НОВАЯ ОПЛАТА (РУЧНАЯ ПРОВЕРКА)\n"
+                f"👤 Пользователь: @{message.from_user.username or message.from_user.first_name} (ID: {message.from_user.id})\n"
+                f"📦 Тариф: {tariff_name}\n"
+                f"💰 Сумма: {price:.2f} ₽",
+        reply_markup=keyboard
+    )
+
+    await message.answer(
+        f"✅ Спасибо! Ваша квитанция отправлена модератору.\n\n"
+        f"🕐 Доступ будет выдан в течение 30 минут после подтверждения оплаты.\n\n"
+        f"👨‍💼 С вами свяжется администратор.\n\n"
+        f"Спасибо за доверие!\n\n"
+        f"💡 У вас есть 24 часа, чтобы попробовать тариф. Если не подойдёт — вернём деньги. Запросить возврат можно в разделе «Мои покупки»."
+    )
+    await state.clear()
+
+
+@dp.callback_query(F.data.startswith("approve_payment_"))
+async def approve_payment(callback: types.CallbackQuery):
+    if callback.from_user.id != MODERATOR_CHAT_ID:
+        await callback.answer("⛔ У вас нет прав.", show_alert=True)
+        return
+
+    parts = callback.data.split("_")
+    user_id = int(parts[2])
+    price = float(parts[3])
+    tariff_name = "_".join(parts[4:])
+
+    add_purchase(user_id, tariff_name, price, "address")
+
+    await callback.message.edit_caption(
+        callback.message.caption + "\n\n✅ ОПЛАЧЕНО"
+    )
+
+    await callback.answer("✅ Оплата подтверждена!", show_alert=True)
+
+    try:
+        await bot.send_message(
+            user_id,
+            f"✅ Ваша оплата подтверждена!\n\n"
+            f"📦 Тариф: {tariff_name}\n"
+            f"💰 Сумма: {price:.2f} ₽\n\n"
+            f"🕐 Доступ будет выдан в течение 30 минут — готовлю для вас отдельный канал.\n\n"
+            f"Спасибо за доверие!\n\n"
+            f"💡 У вас есть 24 часа, чтобы попробовать тариф. Если не подойдёт — вернём деньги. Запросить возврат можно в разделе «Мои покупки»."
+        )
+    except:
+        pass
+
+
+@dp.callback_query(F.data.startswith("reject_payment_"))
+async def reject_payment(callback: types.CallbackQuery):
+    if callback.from_user.id != MODERATOR_CHAT_ID:
+        await callback.answer("⛔ У вас нет прав.", show_alert=True)
+        return
+
+    user_id = int(callback.data.split("_")[2])
+
+    await callback.message.edit_caption(
+        callback.message.caption + "\n\n❌ ОТКАЗАНО"
+    )
+
+    await callback.answer("❌ Оплата отклонена!", show_alert=True)
+
+    try:
+        await bot.send_message(
+            user_id,
+            f"❌ Ваша оплата не подтверждена.\n\n"
+            f"Пожалуйста, проверьте правильность реквизитов и попробуйте снова.\n\n"
+            f"💬 По всем вопросам: @Nastia_sup"
+        )
+    except:
+        pass
 
 
 @dp.callback_query(F.data == "back_to_payment_methods")
@@ -472,16 +865,7 @@ async def back_to_payment_methods(callback: types.CallbackQuery, state: FSMConte
     await start_payment(callback, state)
 
 
-# ========== ОСТАЛЬНЫЕ КНОПКИ ==========
-@dp.message(F.text == "Тарифы 🦋")
-async def show_tariffs(message: types.Message, state: FSMContext):
-    await message.answer(
-        "🌟 Коснись любого тарифа — и запретное откроется:",
-        reply_markup=get_tariffs_keyboard()
-    )
-    await state.clear()
-
-
+# ========== МОИ ПОКУПКИ ==========
 @dp.message(F.text == "Мои покупки 📦")
 async def my_purchases(message: types.Message):
     user_id = message.from_user.id
