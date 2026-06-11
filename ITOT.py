@@ -243,6 +243,7 @@ def get_pending_join_requests():
 
 
 def get_rub_to_stars(rub: float) -> int:
+    """Конвертация рублей в звёзды (1⭐ = 1.33₽)"""
     return int(rub / 1.33)
 
 
@@ -425,7 +426,7 @@ async def show_main_menu(message: types.Message, state: FSMContext):
     await state.clear()
 
 
-# ========== НОВАЯ ЛОГИКА ОПЛАТЫ STARTS ==========
+# ========== НОВАЯ ЛОГИКА ОПЛАТЫ STARS ==========
 @dp.callback_query(F.data.startswith("tariff_"))
 async def process_tariff(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
@@ -434,7 +435,6 @@ async def process_tariff(callback: types.CallbackQuery, state: FSMContext):
     await state.update_data(selected_tariff_index=idx, selected_price=price, tariff_name=name)
 
     stars = get_rub_to_stars(price)
-    discount_stars = get_rub_to_stars(price * 0.8)
 
     tariff_text = f"{description}\n\n"
     tariff_text += f"⭐️ Цена: {stars} ⭐ ({price:.0f} ₽)\n\n"
@@ -650,7 +650,7 @@ async def back_to_tariffs(callback: types.CallbackQuery, state: FSMContext):
 async def pay_cryptobot(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer("🔄 Создаём счёт...")
     data = await state.get_data()
-    price_rub = data.get("current_price", 0)
+    price_rub = data.get("selected_price", 0)
     idx = data.get("selected_tariff_index", 0)
     tariff_name = TARIFFS[idx][0] if idx < len(TARIFFS) else "тариф"
 
@@ -684,14 +684,14 @@ async def pay_cryptobot(callback: types.CallbackQuery, state: FSMContext):
             await state.update_data(cryptobot_tariff_idx=idx)
 
             text = (
-                f"✅ Счёт на оплату через CryptoBot успешно создан. Вы получите доступ к тарифу, как только оплатите его.\n\n"
+                f"✅ Счёт на оплату через CryptoBot успешно создан.\n\n"
                 f"🧾 Нажмите кнопку «Перейти к оплате», далее выберите монету и нажмите «Оплатить»\n\n"
                 f"🎯 К оплате: {price_rub:.2f} ₽"
             )
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="💸 Перейти к оплате 💸", url=bot_invoice_url)],
                 [InlineKeyboardButton(text="🔄 Проверить оплату", callback_data="check_cryptobot_payment")],
-                [InlineKeyboardButton(text="👈 Назад к способам оплаты", callback_data="back_to_payment_methods")]
+                [InlineKeyboardButton(text="👈 Назад", callback_data="back_to_payment_methods")]
             ])
             await callback.message.edit_text(text, parse_mode="HTML", reply_markup=keyboard)
         else:
@@ -735,7 +735,7 @@ async def check_cryptobot_payment(callback: types.CallbackQuery, state: FSMConte
                         f"✅ Оплата подтверждена!\n\n"
                         f"📦 Тариф: {tariff_name}\n"
                         f"💰 Сумма: {price:.2f} ₽\n\n"
-                        f"🕐 Доступ будет выдан в течение 30 минут — готовлю для вас отдельный канал.\n\n"
+                        f"🕐 Доступ будет выдан в течение 30 минут.\n\n"
                         f"👨‍💼 С вами свяжется администратор.\n\n"
                         f"Спасибо за доверие!\n\n"
                         f"💡 У вас есть 24 часа, чтобы попробовать тариф. Если не подойдёт — вернём деньги. Запросить возврат можно в разделе «Мои покупки»."
@@ -766,7 +766,7 @@ async def check_cryptobot_payment(callback: types.CallbackQuery, state: FSMConte
 async def pay_crypto_address(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
     data = await state.get_data()
-    price = data.get("current_price", 0)
+    price = data.get("selected_price", 0)
 
     usdt_amount = get_crypto_amount(price, "USDT")
     ton_amount = get_crypto_amount(price, "TON")
@@ -799,7 +799,7 @@ TM2UCR8vh6a8fTLphBTHjfztzdTNF8g9j7
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✅ Я оплатил", callback_data="manual_paid_crypto_address")],
-        [InlineKeyboardButton(text="👈 Назад к способам оплаты", callback_data="back_to_payment_methods")]
+        [InlineKeyboardButton(text="👈 Назад", callback_data="back_to_payment_methods")]
     ])
     await callback.message.edit_text(text, parse_mode="HTML", reply_markup=keyboard)
 
@@ -820,7 +820,6 @@ async def manual_paid_other(callback: types.CallbackQuery, state: FSMContext):
     await state.set_state(PaymentState.awaiting_screenshot)
 
 
-# ========== ОБРАБОТЧИК СКРИНШОТОВ ==========
 @dp.message(PaymentState.awaiting_screenshot, F.photo)
 async def handle_screenshot(message: types.Message, state: FSMContext):
     data = await state.get_data()
@@ -861,7 +860,6 @@ async def handle_screenshot(message: types.Message, state: FSMContext):
     await state.clear()
 
 
-# ========== ПОДТВЕРЖДЕНИЕ ОПЛАТ АДМИНОМ ==========
 @dp.callback_query(F.data.startswith("approve_payment_"))
 async def approve_payment(callback: types.CallbackQuery):
     if callback.from_user.id != MODERATOR_CHAT_ID:
@@ -974,7 +972,7 @@ async def tariffs_from_purchases(callback: types.CallbackQuery):
     )
 
 
-# ========== ОСТАЛЬНЫЕ КНОПКИ ==========
+# ========== ПОДДЕРЖКА, ПРЕВЬЮ, ИНСТРУКЦИЯ ==========
 @dp.message(F.text == "📲 Поддержка 👩🏻‍💻")
 async def support(message: types.Message):
     await message.answer(
