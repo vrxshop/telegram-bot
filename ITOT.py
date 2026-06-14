@@ -11,6 +11,10 @@ from aiogram.fsm.context import FSMContext
 
 API_TOKEN = os.getenv("API_TOKEN")
 
+# ========== ЖЁСТКО ЗАШИТЫЕ ДАННЫЕ ==========
+CRYPTOBOT_TOKEN = os.getenv("CRYPTOBOT_TOKEN")
+ADMIN_ID = 8559381302
+
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
@@ -85,11 +89,11 @@ async def send_to_admin(message: str):
     except:
         pass
 
-# ========== СТАРТ ==========
+# ========== СТАРТ (ИСПРАВЛЕНО) ==========
 @dp.message(Command("start"))
 async def start(message: types.Message):
-    await message.answer("Добро пожаловать в бот!")
-    await message.answer("Выберите товар:", reply_markup=main_keyboard)
+    await message.answer("🔞LUNAxab🔞\n\nДобро пожаловать в бот!")
+    await message.answer("Выберите товар:", reply_markup=product_keyboard)
 
 @dp.message(F.text == "🛒 Товары")
 async def show_products(message: types.Message):
@@ -285,19 +289,12 @@ async def handle_screenshot(message: types.Message):
     await message.answer("📸 Скриншот получен! Администратор проверит оплату.")
     await send_to_admin(f"📸 Чек от @{message.from_user.username}\nID: {message.from_user.id}")
 
-# ... ваш код импорта и инициализации bot/dispatcher ...
 # ========== ЗАПУСК ==========
 async def main():
     print("🤖 Бот запущен!")
-     # --- Это единственная строчка, которая решает проблему ---
-    # drop_pending_updates=True очищает очередь старых сообщений и обрывает старую сессию
     await bot.delete_webhook(drop_pending_updates=True)
-    # -------------------------------------------------------
-    
-    # Теперь запускаем polling
     await dp.start_polling(bot)
   
 
 if __name__ == "__main__":
     asyncio.run(main())
-
