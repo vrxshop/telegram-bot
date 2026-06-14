@@ -11,7 +11,7 @@ from aiogram.fsm.context import FSMContext
 
 API_TOKEN = os.getenv("API_TOKEN")
 
-# ========== ЖЁСТКО ЗАШИТЫЕ ДАННЫЕ ==========
+# ========== ДАННЫЕ ИЗ ПЕРЕМЕННЫХ ==========
 CRYPTOBOT_TOKEN = os.getenv("CRYPTOBOT_TOKEN")
 ADMIN_ID = 8559381302
 
@@ -83,13 +83,18 @@ lang_keyboard = ReplyKeyboardMarkup(
 class PromoState(StatesGroup):
     waiting_for_promo = State()
 
+# ========== СОСТОЯНИЯ ДЛЯ ПОДДЕРЖКИ ==========
+class SupportStates(StatesGroup):
+    waiting_for_message = State()
+    admin_waiting_reply = State()
+
 async def send_to_admin(message: str):
     try:
         await bot.send_message(ADMIN_ID, message)
     except:
         pass
 
-# ========== СТАРТ (ИСПРАВЛЕНО) ==========
+# ========== СТАРТ ==========
 @dp.message(Command("start"))
 async def start(message: types.Message):
     await message.answer("🔞LUNAxab🔞\n\nДобро пожаловать в бот!")
@@ -99,10 +104,58 @@ async def start(message: types.Message):
 async def show_products(message: types.Message):
     await message.answer("Выберите товар:", reply_markup=product_keyboard)
 
+# ========== ПОДДЕРЖКА (ОБРАТНАЯ СВЯЗЬ) ==========
 @dp.message(F.text == "✉️ Обратная связь")
-async def feedback(message: types.Message):
-    await message.answer("Отправьте ваше сообщение боту, поддержка ответит вам в ближайшее время.", reply_markup=main_keyboard)
+async def feedback_start(message: types.Message, state: FSMContext):
+    await state.set_state(SupportStates.waiting_for_message)
+    await message.answer("📝 Напишите ваше сообщение для поддержки:")
 
+@dp.message(SupportStates.waiting_for_message)
+async def send_to_admin_feedback(message: types.Message, state: FSMContext):
+    user_id = message.from_user.id
+    username = message.from_user.username or message.from_user.first_name
+    
+    # Кнопка "Ответить" для админа
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✍️ Ответить", callback_data=f"reply_{user_id}")]
+    ])
+    
+    await bot.send_message(
+        ADMIN_ID,
+        f"📨 НОВОЕ СООБЩЕНИЕ\n"
+        f"👤 @{username}\n"
+        f"🆔 ID: {user_id}\n\n"
+        f"💬 {message.text}",
+        reply_markup=keyboard
+    )
+    
+    await message.answer("✅ Сообщение отправлено!")
+    await state.clear()
+
+# Админ нажал "Ответить"
+@dp.callback_query(F.data.startswith("reply_"))
+async def admin_reply_start(callback: types.CallbackQuery, state: FSMContext):
+    user_id = int(callback.data.split("_")[1])
+    await state.update_data(reply_user_id=user_id)
+    await state.set_state(SupportStates.admin_waiting_reply)
+    await callback.message.answer(f"✍️ Напишите ответ для пользователя (ID: {user_id}):")
+    await callback.answer()
+
+# Админ отправил ответ пользователю
+@dp.message(SupportStates.admin_waiting_reply)
+async def send_reply_to_user(message: types.Message, state: FSMContext):
+    data = await state.get_data()
+    user_id = data.get("reply_user_id")
+    
+    if user_id:
+        await bot.send_message(user_id, f"📬 Ответ от поддержки:\n\n{message.text}")
+        await message.answer(f"✅ Ответ отправлен пользователю {user_id}")
+    else:
+        await message.answer("❌ Ошибка: пользователь не найден")
+    
+    await state.clear()
+
+# ========== ЯЗЫК ==========
 @dp.message(F.text == "🌐 Язык")
 @dp.message(Command("lang"))
 async def change_lang(message: types.Message):
@@ -294,7 +347,6 @@ async def main():
     print("🤖 Бот запущен!")
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
-  
 
 if __name__ == "__main__":
     asyncio.run(main())
