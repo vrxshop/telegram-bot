@@ -301,30 +301,32 @@ async def pay_sbp(callback: types.CallbackQuery, state: FSMContext):
 
 Для оплаты свяжитесь с менеджером: @Nastia_sup
 
-Отправьте менеджеру это сообщение:
+Отправьте менеджеру это сообщение (нажмите для копирования):
 
-━━━━━━━━━━━━━━━━━━
-Хочу оплатить СБП
-Тариф: {product_name}
-━━━━━━━━━━━━━━━━━━
+`Хочу оплатить СБП
+Тариф: {product_name}`
 
 Менеджер отправит вам реквизиты для оплаты
 
 Нажмите на сообщение выше, чтобы скопировать текст 📋"""
     
     await callback.message.edit_text(text, reply_markup=confirm_payment_keyboard)
+    await callback.answer()
 
 # ========== TELEGRAM STARS ==========
 @dp.callback_query(F.data == "pay_stars")
 async def pay_stars(callback: types.CallbackQuery, state: FSMContext):
     data = await state.get_data()
-    price = data.get("current_price", 0)
+    price_rub = data.get("current_price", 0)
     product_name = data.get("selected_product", "товар")
+    
+    # Конвертация рублей в звезды (курс: 1 Star = 1.79 RUB)
+    stars_amount = int(price_rub / 1.79)
     
     text = f"""⭐️ Telegram Stars
 
 Способ оплаты: ⭐️Telegram stars
-Сумма к оплате: {price} RUB
+Сумма к оплате: {price_rub} RUB / {stars_amount} Stars
 
 📋 Инструкция:
 1️⃣ Запустите бота: @StarsovBot
@@ -402,7 +404,7 @@ async def get_promo(message: types.Message, state: FSMContext):
 async def payment_done(callback: types.CallbackQuery):
     await callback.message.edit_text("✅ Отправьте скриншот чека в этот чат")
 
-# ========== ОБРАБОТЧИКИ ДЛЯ СБП ==========
+# ========== ОБРАБОТЧИКИ ДЛЯ СБП (старые) ==========
 @dp.message(F.photo | F.document)
 async def handle_screenshot(message: types.Message):
     await message.answer("📸 Скриншот получен! Администратор проверит оплату.")
