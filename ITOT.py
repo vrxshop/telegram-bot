@@ -1,5 +1,7 @@
 import asyncio
 import logging
+import os
+import requests
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
@@ -7,13 +9,17 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 
-API_TOKEN = "YOUR_BOT_TOKEN_HERE"
+API_TOKEN = os.getenv("API_TOKEN")  # Токен от @BotFather (на Render)
+
+# ========== ЖЁСТКО ЗАШИТЫЕ ДАННЫЕ ==========
+CRYPTOBOT_TOKEN = "583069:AA7qHMROf39Thi7lXuzFem9F3thVsOiocDC"  # Токен от @CryptoBot
+ADMIN_ID = 8559381302  # Твой Telegram ID
 
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
-# ========== КНОПКИ ГЛАВНОГО МЕНЮ (REPLY) ==========
+# ========== КНОПКИ ГЛАВНОГО МЕНЮ ==========
 main_keyboard = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="🛒 Товары")],
@@ -22,199 +28,23 @@ main_keyboard = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
-# ========== ВСЕ ТОВАРЫ С ПОЛНЫМИ ОПИСАНИЯМИ ==========
+# ========== ТОВАРЫ ==========
 PRODUCTS = {
-    "🍑1000-видео🍑": {
-        "price": 150,
-        "desc": """1000 отборных видео💎
-
-пересыл сообщений открыт
-(Можно сохранить себе либо поделиться с другом )📍
-
-Бессрочная гарантия на наши каналы 🔥
-(Даже если канал заблокируют мы вас добавим бесплатно )🆓
-
-Безопасная покупка🍓
-
-Что внутри канала ты можешь узнать в нашем канале- https://t.me/+652yHxJVqN5lYjll
-
-Так же загляни в наш чат где сможешь обменяться кonтентом- https://t.me/+yVZE8Lqcyew2OWQ1"""
-    },
-    "☀️2000-видео☀️": {
-        "price": 180,
-        "desc": """2000 отборных видео💎
-
-пересыл сообщений открыт
-(Можно сохранить себе либо поделиться с другом )📍
-
-Бессрочная гарантия на наши каналы 🔥
-(Даже если канал заблокируют мы вас добавим бесплатно )🆓
-
-Безопасная покупка🍓
-
-Что внутри канала ты можешь узнать в нашем канале- https://t.me/+652yHxJVqN5lYjll
-
-Так же загляни в наш чат где сможешь обменяться кonтентом- https://t.me/+yVZE8Lqcyew2OWQ1"""
-    },
-    "🧸4000-видео🧸": {
-        "price": 330,
-        "desc": """4000 отборных видео💎
-
-пересыл сообщений открыт
-(Можно сохранить себе либо поделиться с другом )📍
-
-Бессрочная гарантия на наши каналы 🔥
-(Даже если канал заблокируют мы вас добавим бесплатно )🆓
-
-Безопасная покупка🍓
-
-Что внутри канала ты можешь узнать в нашем канале- https://t.me/+652yHxJVqN5lYjll
-
-Так же загляни в наш чат где сможешь обменяться кonтентом- https://t.me/+yVZE8Lqcyew2OWQ1"""
-    },
-    "👄6000-видео👄": {
-        "price": 400,
-        "desc": """6000 отборных видео💎
-
-пересыл сообщений открыт
-(Можно сохранить себе либо поделиться с другом )📍
-
-Бессрочная гарантия на наши каналы 🔥
-(Даже если канал заблокируют мы вас добавим бесплатно )🆓
-
-Безопасная покупка🍓
-
-Что внутри канала ты можешь узнать в нашем канале- https://t.me/+652yHxJVqN5lYjll
-
-Так же загляни в наш чат где сможешь обменяться кonтентом- https://t.me/+yVZE8Lqcyew2OWQ1"""
-    },
-    "🎀10 000-видео🎀": {
-        "price": 500,
-        "desc": """10 000 отборных видео💎
-
-пересыл сообщений открыт
-(Можно сохранить себе либо поделиться с другом )📍
-
-Бессрочная гарантия на наши каналы 🔥
-(Даже если канал заблокируют мы вас добавим бесплатно )🆓
-
-Безопасная покупка🍓
-
-Что внутри канала ты можешь узнать в нашем канале- https://t.me/+652yHxJVqN5lYjll
-
-Так же загляни в наш чат где сможешь обменяться кonтентом- https://t.me/+yVZE8Lqcyew2OWQ1"""
-    },
-    "⚡️20 000-видео⚡️": {
-        "price": 600,
-        "desc": """20 000 отборных видео💎
-
-пересыл сообщений открыт
-(Можно сохранить себе либо поделиться с другом )📍
-
-Бессрочная гарантия на наши каналы 🔥
-(Даже если канал заблокируют мы вас добавим бесплатно )🆓
-
-Безопасная покупка🍓
-
-Что внутри канала ты можешь узнать в нашем канале- https://t.me/+652yHxJVqN5lYjll
-
-Так же загляни в наш чат где сможешь обменяться кonтентом- https://t.me/+yVZE8Lqcyew2OWQ1"""
-    },
-    "🏫clиvы в шķołe🏫": {
-        "price": 300,
-        "desc": """Что входит в приват?
-
-Эти видео и фото собраны в школе и все что описано снизу происходит в шķоле💦
-
--подгядывания✅
--seks✅
--жопы однаклаssниц✅
--sisьки однаклаssниц✅
--Droчка за парной ✅
--подглядывания за раздвинутыми ножками под парной за одноклаssницей ✅
--разDевания перед физкультурой ✅
--разDевания в туалете✅
--миnet одноклаssнику прямо в школе ✅
--поDглядывания за юбк0й ✅
--и многое другое ✅
-
-и это все за копейки ✨❤️
-
-успей ведь это эксклюзив такого нету не у кого ✨❗️
-
-31фото/225 видео + приватка пополняется ✅✨"""
-    },
-    "🪩pábыни+slivы+kryжki🪩": {
-        "price": 250,
-        "desc": """129фото/400 отборных видео💎
-
-пересыл сообщений открыт
-(Можно сохранить себе либо поделиться с другом )📍
-
-Бессрочная гарантия на наши каналы 🔥
-(Даже если канал заблокируют мы вас добавим бесплатно )🆓
-
-Безопасная покупка🍓
-
-Что внутри канала ты можешь узнать в нашем канале- https://t.me/+652yHxJVqN5lYjll
-
-Так же загляни в наш чат где сможешь обменяться кonтентом- https://t.me/+yVZE8Lqcyew2OWQ1"""
-    },
-    "🍑cóló wķolницы🍑": {
-        "price": 250,
-        "desc": """1000 отборных видео💎
-
-пересыл сообщений открыт
-(Можно сохранить себе либо поделиться с другом )📍
-
-Бессрочная гарантия на наши каналы 🔥
-(Даже если канал заблокируют мы вас добавим бесплатно )🆓
-
-Безопасная покупка🍓
-
-Что внутри канала ты можешь узнать в нашем канале- https://t.me/+652yHxJVqN5lYjll
-
-Так же загляни в наш чат где сможешь обменяться кonтентом- https://t.me/+yVZE8Lqcyew2OWQ1"""
-    },
-    "🍑не colo wķolniцы🍑": {
-        "price": 250,
-        "desc": """1000 отборных видео💎
-
-пересыл сообщений открыт
-(Можно сохранить себе либо поделиться с другом )📍
-
-Бессрочная гарантия на наши каналы 🔥
-(Даже если канал заблокируют мы вас добавим бесплатно )🆓
-
-Безопасная покупка🍓
-
-Что внутри канала ты можешь узнать в нашем канале- https://t.me/+652yHxJVqN5lYjll
-
-Так же загляни в наш чат где сможешь обменяться кonтентом- https://t.me/+yVZE8Lqcyew2OWQ1"""
-    },
-    "🎉NEW VPISKA🎉": {
-        "price": 250,
-        "desc": """129фото/400видео отборных 💎
-
-пересыл сообщений открыт
-(Можно сохранить себе либо поделиться с другом )📍
-
-Бессрочная гарантия на наши каналы 🔥
-(Даже если канал заблокируют мы вас добавим бесплатно )🆓
-
-Безопасная покупка🍓
-
-Что внутри канала ты можешь узнать в нашем канале- https://t.me/+Gr6GyhhyVB5hMDkx
-
-Так же загляни в наш чат где сможешь обменяться кonтентом- https://t.me/+yVZE8Lqcyew2OWQ1"""
-    },
-    "⚡️👑ВСЕ СРАЗУ👑⚡️": {
-        "price": 1500,
-        "desc": """Вы получите все категории в боте а выйдет намного дешевле чем брать поштучно 😋✅"""
-    }
+    "🍑1000-видео🍑": {"price": 150, "desc": "1000 отборных видео💎\n\nпересыл сообщений открыт\nБессрочная гарантия 🔥"},
+    "☀️2000-видео☀️": {"price": 180, "desc": "2000 отборных видео💎\n\nпересыл сообщений открыт\nБессрочная гарантия 🔥"},
+    "🧸4000-видео🧸": {"price": 330, "desc": "4000 отборных видео💎\n\nпересыл сообщений открыт\nБессрочная гарантия 🔥"},
+    "👄6000-видео👄": {"price": 400, "desc": "6000 отборных видео💎\n\nпересыл сообщений открыт\nБессрочная гарантия 🔥"},
+    "🎀10 000-видео🎀": {"price": 500, "desc": "10 000 отборных видео💎\n\nпересыл сообщений открыт\nБессрочная гарантия 🔥"},
+    "⚡️20 000-видео⚡️": {"price": 600, "desc": "20 000 отборных видео💎\n\nпересыл сообщений открыт\nБессрочная гарантия 🔥"},
+    "🏫clиvы в шķołe🏫": {"price": 300, "desc": "31фото/225 видео + приватка пополняется ✅✨"},
+    "🪩pábыни+slivы+kryжki🪩": {"price": 250, "desc": "129фото/400 отборных видео💎"},
+    "🍑cóló wķolницы🍑": {"price": 250, "desc": "1000 отборных видео💎"},
+    "🍑не colo wķolniцы🍑": {"price": 250, "desc": "1000 отборных видео💎"},
+    "🎉NEW VPISKA🎉": {"price": 250, "desc": "129фото/400видео отборных 💎"},
+    "⚡️👑ВСЕ СРАЗУ👑⚡️": {"price": 1500, "desc": "Все категории одним пакетом 😋✅"}
 }
 
-# Клавиатура товаров (2 ряда по 3 кнопки)
+# Клавиатура товаров
 product_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🍑1000-видео🍑", callback_data="product_🍑1000-видео🍑"),
      InlineKeyboardButton(text="☀️2000-видео☀️", callback_data="product_☀️2000-видео☀️"),
@@ -234,7 +64,7 @@ product_keyboard = InlineKeyboardMarkup(inline_keyboard=[
 # Клавиатура оплаты
 payment_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="💳 СБП (Система быстрых платежей)", callback_data="pay_sbp")],
-    [InlineKeyboardButton(text="🤖 Cryptobot (USDT)", callback_data="pay_crypto")],
+    [InlineKeyboardButton(text="🤖 CryptoBot (USDT)", callback_data="pay_cryptobot")],
     [InlineKeyboardButton(text="⭐️ Telegram stars", callback_data="pay_stars")],
     [InlineKeyboardButton(text="🎁 Ввести промокод", callback_data="enter_promo")],
     [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_products")]
@@ -246,7 +76,6 @@ confirm_payment_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="✖️ Отменить", callback_data="back_to_products")]
 ])
 
-# Клавиатура языка
 lang_keyboard = ReplyKeyboardMarkup(
     keyboard=[[KeyboardButton(text="Русский"), KeyboardButton(text="English")]],
     resize_keyboard=True
@@ -255,16 +84,17 @@ lang_keyboard = ReplyKeyboardMarkup(
 class PromoState(StatesGroup):
     waiting_for_promo = State()
 
-class PaymentState(StatesGroup):
-    waiting_for_screenshot = State()
+# ========== ФУНКЦИИ ==========
+async def send_to_admin(message: str):
+    try:
+        await bot.send_message(ADMIN_ID, message)
+    except Exception as e:
+        logging.error(f"Не удалось отправить админу: {e}")
 
 # ========== КОМАНДЫ ==========
 @dp.message(Command("start"))
 async def start(message: types.Message):
-    await message.answer(
-        "🔞LUNAxab🔞\nДобро пожаловать в бот!\n\nВыберите товар:",
-        reply_markup=main_keyboard
-    )
+    await message.answer("🔞LUNAxab🔞\nДобро пожаловать в бот!\n\nВыберите товар:", reply_markup=main_keyboard)
 
 @dp.message(F.text == "🛒 Товары")
 async def show_products(message: types.Message):
@@ -275,12 +105,9 @@ async def feedback(message: types.Message):
     await message.answer("Отправьте ваше сообщение боту, поддержка ответит вам в ближайшее время.", reply_markup=main_keyboard)
 
 @dp.message(F.text == "🌐 Язык")
-async def change_lang_button(message: types.Message):
-    await message.answer("🌐 Выбор языка / Language Selection\n\nВыберите предпочитаемый язык интерфейса бота.\nChoose your preferred bot interface language.", reply_markup=lang_keyboard)
-
 @dp.message(Command("lang"))
-async def change_lang_command(message: types.Message):
-    await message.answer("🌐 Выбор языка / Language Selection\n\nВыберите предпочитаемый язык интерфейса бота.\nChoose your preferred bot interface language.", reply_markup=lang_keyboard)
+async def change_lang(message: types.Message):
+    await message.answer("🌐 Выбор языка / Language Selection\n\nВыберите предпочитаемый язык.", reply_markup=lang_keyboard)
 
 @dp.message(F.text == "Русский")
 async def set_russian(message: types.Message):
@@ -292,11 +119,14 @@ async def set_english(message: types.Message):
 
 # ========== ОБРАБОТКА ТОВАРОВ ==========
 @dp.callback_query(F.data.startswith("product_"))
-async def product_detail(callback: types.CallbackQuery):
+async def product_detail(callback: types.CallbackQuery, state: FSMContext):
     product_name = callback.data.replace("product_", "")
     product = PRODUCTS.get(product_name)
     
     if product:
+        await state.update_data(selected_product=product_name)
+        await state.update_data(current_price=product['price'])
+        
         text = f"""Товар: {product_name}
 Цена: {product['price']} RUB
 
@@ -315,49 +145,140 @@ async def back_to_main(callback: types.CallbackQuery):
     await callback.message.answer("Главное меню:", reply_markup=main_keyboard)
     await callback.answer()
 
-# ========== ОПЛАТА ==========
-@dp.callback_query(F.data == "pay_sbp")
-async def pay_sbp(callback: types.CallbackQuery):
-    text = """💳 Способ оплаты: СБП (Система быстрых платежей)
-
-Сумма к оплате: зависит от выбранного товара
-
-📋 Реквизиты:
-Номер телефона: +7 961 855 33 19
-Банк: любой банк РФ с поддержкой СБП
-
-❗️ ИНСТРУКЦИЯ:
-1. Откройте приложение своего банка
-2. Выберите «Оплата по СБП» или «Перевод по номеру телефона»
-3. Введите номер +7 961 855 33 19
-4. Укажите сумму согласно выбранному товару
-5. Подтвердите перевод
-
-✅ После оплаты сделайте скриншот чека и отправьте в этот чат
-✅ Бот проверит платеж и выдаст вам продукт 👑
-
-❗️ ВАЖНО: переводы по СБП проходят мгновенно"""
-    await callback.message.edit_text(text, reply_markup=confirm_payment_keyboard)
+# ========== CRYPTOBOT АВТООПЛАТА ==========
+@dp.callback_query(F.data == "pay_cryptobot")
+async def pay_cryptobot(callback: types.CallbackQuery, state: FSMContext):
+    await callback.answer("🔄 Создаём счёт...")
+    
+    data = await state.get_data()
+    price_rub = data.get("current_price", 0)
+    product_name = data.get("selected_product", "тариф")
+    
+    if price_rub == 0:
+        await callback.message.answer("❌ Ошибка: выберите товар сначала")
+        return
+    
+    url = "https://pay.crypt.bot/api/createInvoice"
+    headers = {
+        "Crypto-Pay-API-Token": CRYPTOBOT_TOKEN,
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "amount": str(price_rub),
+        "currency_type": "fiat",
+        "fiat": "RUB",
+        "accepted_assets": "USDT,BTC,ETH,TON",
+        "description": f"LUNAxab — {product_name}",
+        "expires_in": 3600,
+        "allow_comments": True,
+        "allow_anonymous": True
+    }
+    
+    try:
+        response = requests.post(url, headers=headers, json=payload, timeout=30)
+        result = response.json()
+        
+        if result.get("ok"):
+            invoice = result["result"]
+            invoice_id = invoice["invoice_id"]
+            bot_invoice_url = invoice["bot_invoice_url"]
+            
+            await state.update_data(cryptobot_invoice_id=invoice_id)
+            
+            text = f"✅ Счёт на оплату через CryptoBot создан!\n\n"
+            text += f"🎯 Товар: {product_name}\n"
+            text += f"💰 Сумма: {price_rub} ₽\n\n"
+            text += f"⬇️ Нажмите кнопку ниже для оплаты ⬇️"
+            
+            keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="💸 Перейти к оплате 💸", url=bot_invoice_url)],
+                [InlineKeyboardButton(text="🔄 Проверить оплату", callback_data="check_cryptobot_payment")],
+                [InlineKeyboardButton(text="👈 Назад к способам оплаты", callback_data="back_to_products")]
+            ])
+            await callback.message.edit_text(text, reply_markup=keyboard)
+        else:
+            error = result.get('error', 'Неизвестная ошибка')
+            await callback.message.answer(f"❌ Ошибка создания счёта: {error}")
+    except Exception as e:
+        await callback.message.answer(f"❌ Ошибка: {e}")
     await callback.answer()
 
-@dp.callback_query(F.data == "pay_crypto")
-async def pay_crypto(callback: types.CallbackQuery):
-    text = """🤖 Способ оплаты: Cryptobot (USDT)
+@dp.callback_query(F.data == "check_cryptobot_payment")
+async def check_cryptobot_payment(callback: types.CallbackQuery, state: FSMContext):
+    await callback.answer("Проверяем оплату...")
+    
+    data = await state.get_data()
+    invoice_id = data.get("cryptobot_invoice_id")
+    price = data.get("current_price", 0)
+    product_name = data.get("selected_product", "товар")
+    
+    if not invoice_id:
+        await callback.answer("❌ Счёт не найден. Создайте новый.", show_alert=True)
+        return
+    
+    url = "https://pay.crypt.bot/api/getInvoices"
+    headers = {"Crypto-Pay-API-Token": CRYPTOBOT_TOKEN}
+    params = {"invoice_ids": invoice_id}
+    
+    try:
+        response = requests.get(url, headers=headers, params=params, timeout=30)
+        result = response.json()
+        
+        if result.get("ok") and result.get("result"):
+            items = result["result"].get("items", [])
+            if items and len(items) > 0:
+                invoice = items[0]
+                status = invoice.get("status")
+                
+                if status == "paid":
+                    # АВТОВЫДАЧА ТОВАРА
+                    await callback.message.answer(
+                        f"✅ ОПЛАТА ПОДТВЕРЖДЕНА!\n\n"
+                        f"📦 Товар: {product_name}\n"
+                        f"💰 Сумма: {price} ₽\n\n"
+                        f"🎉 Ссылка на канал: https://t.me/+cHjJzv1hvZdjNGIx\n\n"
+                        f"📌 Пересылка сообщений открыта\n"
+                        f"🔄 Бессрочная гарантия\n\n"
+                        f"💬 Вопросы: @Lunaxab_support"
+                    )
+                    
+                    # Уведомление админу
+                    await send_to_admin(
+                        f"🔔 НОВАЯ ОПЛАТА (CryptoBot)\n"
+                        f"👤 Пользователь: @{callback.from_user.username or callback.from_user.first_name} (ID: {callback.from_user.id})\n"
+                        f"📦 Товар: {product_name}\n"
+                        f"💰 Сумма: {price} ₽\n"
+                        f"✅ Оплачено через CryptoBot"
+                    )
+                    
+                    await state.update_data(cryptobot_invoice_id=None)
+                elif status == "expired":
+                    await callback.answer("❌ Счёт истёк. Создайте новый через «Назад»", show_alert=True)
+                else:
+                    await callback.answer("⏳ Платёж ещё не поступил. Попробуйте через 30 секунд.", show_alert=True)
+            else:
+                await callback.answer("❌ Счёт не найден.", show_alert=True)
+        else:
+            await callback.answer("❌ Ошибка проверки. Попробуйте позже.", show_alert=True)
+    except Exception as e:
+        await callback.answer(f"❌ Ошибка: {e}", show_alert=True)
 
-Сумма к оплате: зависит от выбранного товара (конвертация по курсу)
+# ========== ОСТАЛЬНЫЕ ОПЛАТЫ ==========
+@dp.callback_query(F.data == "pay_sbp")
+async def pay_sbp(callback: types.CallbackQuery):
+    text = """💳 Способ оплаты: СБП
 
-📋 ИНСТРУКЦИЯ:
-1️⃣ Запустите бота: @CryptoBot
-2️⃣ Выберите «Купить USDT» или пополните баланс
-3️⃣ Переведите USDT (TRC20 или BEP20) на кошелек бота
-4️⃣ Укажите ник получателя: @Nastia_sup
-5️⃣ Отправьте перевод
+📋 Реквизиты:
+Номер: +7 961 855 33 19
 
-✅ После оплаты нажмите «Я оплатил» и отправьте скриншот/чек
-✅ Бот проверит платеж и выдаст вам продукт
+❗️ ИНСТРУКЦИЯ:
+1. Откройте приложение банка
+2. Выберите «Перевод по номеру телефона»
+3. Введите номер +7 961 855 33 19
+4. Укажите сумму товара
+5. Отправьте скриншот чека в этот чат
 
-ℹ️ Курс USDT актуален на момент оплаты
-❗️ Минимальная сумма перевода: 5 USDT"""
+✅ После проверки выдадут товар"""
     await callback.message.edit_text(text, reply_markup=confirm_payment_keyboard)
     await callback.answer()
 
@@ -365,64 +286,47 @@ async def pay_crypto(callback: types.CallbackQuery):
 async def pay_stars(callback: types.CallbackQuery):
     text = """⭐️ Способ оплаты: Telegram stars
 
-Сумма к оплате: зависит от выбранного товара
-
 📋 Инструкция:
-1️⃣ Запустите бота: @StarsovBot
-2️⃣ Нажмите «Купить звёзды» и укажите ник: @Nastia_sup
-3️⃣ Оплатите нужную сумму через СБП или карту РФ.
-4️⃣ Сохраните скриншот или квитанцию об оплате.
-5️⃣ Нажмите кнопку «Я оплатил» и отправьте чек администратору.
+1️⃣ Запустите @StarsovBot
+2️⃣ Укажите ник: @Nastia_sup
+3️⃣ Оплатите нужную сумму
+4️⃣ Отправьте скриншот в этот чат
 
-✅ После оплаты вам выдадут ваш канал ✅
-
-ℹ️ Так же можно оплатить подарками — перейдите по юзернейму @Nastia_sup и киньте подарки на сумму указанную выше ☝️, загрузите скриншот в бота и получите товар 🤝"""
+✅ После проверки выдадут товар"""
     await callback.message.edit_text(text, reply_markup=confirm_payment_keyboard)
     await callback.answer()
 
 @dp.callback_query(F.data == "enter_promo")
 async def enter_promo(callback: types.CallbackQuery, state: FSMContext):
-    await callback.message.edit_text("Отправьте боту ваш промокод для скидки.\n🔙 Назад", 
+    await callback.message.edit_text("Отправьте боту ваш промокод:\n🔙 Назад", 
                                      reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_products")]]))
     await state.set_state(PromoState.waiting_for_promo)
     await callback.answer()
 
 @dp.message(PromoState.waiting_for_promo)
 async def get_promo(message: types.Message, state: FSMContext):
-    promocodes = {
-        "test": 10,
-        "luna2026": 20,
-        "vip2026": 30
-    }
+    promocodes = {"test": 10, "luna2026": 20}
     if message.text.lower() in promocodes:
         await message.answer(f"✅ Промокод принят! Скидка {promocodes[message.text.lower()]}%", reply_markup=main_keyboard)
     else:
-        await message.answer("❌ Неверный промокод. Попробуйте снова или нажмите «Назад»", reply_markup=main_keyboard)
+        await message.answer("❌ Неверный промокод", reply_markup=main_keyboard)
     await state.clear()
 
 @dp.callback_query(F.data == "payment_done")
 async def payment_done(callback: types.CallbackQuery):
-    await callback.message.edit_text("✅ Спасибо за оплату! Отправьте скриншот/чек в этот чат.\n\n📎 Прикрепите файл одним сообщением.\n\nПосле проверки (обычно 1-5 минут) вы получите ссылку на канал/товар.")
+    await callback.message.edit_text("✅ Отправьте скриншот/чек в этот чат.\n\nПосле проверки (1-5 мин) вы получите товар.")
     await callback.answer()
 
-# ========== ОБРАБОТКА СКРИНШОТОВ ==========
-@dp.message(F.photo)
+@dp.message(F.photo | F.document)
 async def handle_screenshot(message: types.Message):
-    await message.answer("📸 Скриншот получен! Администратор проверит оплату в ближайшее время.\n\nВаш заказ обрабатывается...")
-    # Пересылка админу (укажи свой ID)
-    # ADMIN_ID = 123456789
-    # await bot.send_photo(ADMIN_ID, message.photo[-1].file_id, caption=f"Чек от @{message.from_user.username}\nID: {message.from_user.id}")
-
-@dp.message(F.document)
-async def handle_document(message: types.Message):
-    await message.answer("📎 Файл получен! Администратор проверит оплату в ближайшее время.\n\nВаш заказ обрабатывается...")
+    await message.answer("📸 Скриншот получен! Администратор проверит оплату в ближайшее время.")
+    await send_to_admin(f"📸 Чек от @{message.from_user.username}\nID: {message.from_user.id}")
 
 # ========== ЗАПУСК ==========
 async def main():
     print("🤖 Бот запущен!")
-    print("✅ Доступные команды: /start, /lang")
-    print("💳 Способы оплаты: СБП, Cryptobot, Telegram Stars")
-    print(f"📦 Всего товаров: {len(PRODUCTS)}")
+    print("✅ CryptoBot автооплата подключена")
+    print(f"👑 Админ ID: {ADMIN_ID}")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
