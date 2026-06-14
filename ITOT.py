@@ -289,10 +289,19 @@ async def handle_screenshot(message: types.Message):
     await message.answer("📸 Скриншот получен! Администратор проверит оплату.")
     await send_to_admin(f"📸 Чек от @{message.from_user.username}\nID: {message.from_user.id}")
 
+# ... ваш код импорта и инициализации bot/dispatcher ...
 # ========== ЗАПУСК ==========
 async def main():
     print("🤖 Бот запущен!")
+     # --- Это единственная строчка, которая решает проблему ---
+    # drop_pending_updates=True очищает очередь старых сообщений и обрывает старую сессию
+    await bot.delete_webhook(drop_pending_updates=True)
+    # -------------------------------------------------------
+    
+    # Теперь запускаем polling
     await dp.start_polling(bot)
+  
 
 if __name__ == "__main__":
     asyncio.run(main())
+
