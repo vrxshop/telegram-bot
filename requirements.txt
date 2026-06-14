@@ -1,5 +1,0 @@
-aiogram
-aiohttp
-requests
-aiohttp-socks
-flask
