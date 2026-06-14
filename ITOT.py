@@ -11,10 +11,6 @@ from aiogram.fsm.context import FSMContext
 
 API_TOKEN = os.getenv("API_TOKEN")
 
-# ========== ЖЁСТКО ЗАШИТЫЕ ДАННЫЕ ==========
-CRYPTOBOT_TOKEN = "583069:AA7qHMROf39Thi7lXuzFem9F3thVsOiocDC"
-ADMIN_ID = 8559381302
-
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
