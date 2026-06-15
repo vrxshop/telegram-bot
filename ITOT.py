@@ -311,26 +311,31 @@ async def check_cryptobot_payment(callback: types.CallbackQuery, state: FSMConte
     except Exception as e:
         await callback.answer("❌ Ошибка", show_alert=True)
 
-# ========== СБП ==========
+# ========== СБП С КНОПКОЙ КОПИРОВАНИЯ ==========
 @dp.callback_query(F.data == "pay_sbp")
 async def pay_sbp(callback: types.CallbackQuery, state: FSMContext):
     data = await state.get_data()
     product_name = data.get("selected_product", "товар")
     
+    # Текст для копирования
+    copy_text = f"Хочу оплатить СБП\nТариф: {product_name}"
+    
+    # Клавиатура с кнопкой копирования
+    sbp_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📋 Скопировать текст", copy_text=copy_text)],
+        [InlineKeyboardButton(text="✅ Я оплатил", callback_data="payment_done")],
+        [InlineKeyboardButton(text="✖️ Отменить", callback_data="back_to_products")]
+    ])
+    
     text = f"""💳 СБП
 
 Для оплаты свяжитесь с менеджером: @Nastia_sup
 
-Отправьте менеджеру этот текст:
+Отправьте менеджеру скопированный текст
 
-<code>Хочу оплатить СБП
-Тариф: {product_name}</code>
-
-Менеджер отправит вам реквизиты для оплаты
-
-💡 Нажмите на сообщение выше, чтобы скопировать текст"""
+Менеджер отправит вам реквизиты для оплаты"""
     
-    await callback.message.edit_text(text, reply_markup=confirm_payment_keyboard)
+    await callback.message.edit_text(text, reply_markup=sbp_keyboard)
     await callback.answer()
 
 # ========== STARS ==========
