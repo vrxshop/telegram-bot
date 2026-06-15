@@ -263,8 +263,6 @@ async def pay_cryptobot(callback: types.CallbackQuery, state: FSMContext):
 
 @dp.callback_query(F.data == "check_cryptobot_payment")
 async def check_cryptobot_payment(callback: types.CallbackQuery, state: FSMContext):
-    await callback.answer("🔄 Проверка...")
-    
     data = await state.get_data()
     invoice_id = data.get("cryptobot_invoice_id")
     price = data.get("current_price", 0)
@@ -304,11 +302,12 @@ async def check_cryptobot_payment(callback: types.CallbackQuery, state: FSMConte
                 elif status == "expired":
                     await callback.answer("❌ Счёт истёк", show_alert=True)
                 else:
-                    await callback.answer("⏳ Платёж ещё не поступил. Попробуйте через минуту", show_alert=True)
+                    # Всплывающее окно вместо сообщения в чат
+                    await callback.answer("❌ Платёж ещё не поступил. Попробуйте через минуту", show_alert=True)
             else:
                 await callback.answer("❌ Счёт не найден", show_alert=True)
         else:
-            await callback.answer("❌ Ошибка", show_alert=True)
+            await callback.answer("❌ Ошибка при проверке", show_alert=True)
     except Exception as e:
         await callback.answer("❌ Ошибка", show_alert=True)
 
@@ -324,14 +323,12 @@ async def pay_sbp(callback: types.CallbackQuery, state: FSMContext):
 
 Отправьте менеджеру этот текст (нажмите на сообщение для копирования):
 
-━━━━━━━━━━━━━━━━━━
-Хочу оплатить СБП
-Тариф: {product_name}
-━━━━━━━━━━━━━━━━━━
+<code>Хочу оплатить СБП
+Тариф: {product_name}</code>
 
 Менеджер отправит вам реквизиты для оплаты"""
     
-    await callback.message.edit_text(text, reply_markup=confirm_payment_keyboard)
+    await callback.message.edit_text(text, parse_mode="HTML", reply_markup=confirm_payment_keyboard)
     await callback.answer()
 
 # ========== STARS ==========
