@@ -20,6 +20,9 @@ logging.basicConfig(level=logging.INFO)
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
+# ========== ХРАНИЛИЩЕ ДЛЯ СКИДОК ПОЛЬЗОВАТЕЛЕЙ ==========
+user_discounts = {}
+
 # ========== ПРОМОКОДЫ ==========
 PROMOCODES = {
     "save15": 15,
@@ -184,20 +187,36 @@ async def set_russian(message: types.Message):
 async def set_english(message: types.Message):
     await message.answer("Language: English", reply_markup=main_keyboard)
 
-# ========== ТОВАРЫ ==========
+# ========== ТОВАРЫ (с учетом скидки) ==========
 @dp.callback_query(F.data.startswith("product_"))
 async def product_detail(callback: types.CallbackQuery, state: FSMContext):
     product_name = callback.data.replace("product_", "")
     product = PRODUCTS.get(product_name)
+    user_id = callback.from_user.id
     
     if product:
+        original_price = product['price']
+        
+        # Проверяем есть ли у пользователя активная скидка
+        discount = user_discounts.get(user_id, 0)
+        if discount > 0:
+            current_price = int(original_price * (100 - discount) / 100)
+        else:
+            current_price = original_price
+        
         await state.update_data(selected_product=product_name)
-        await state.update_data(original_price=product['price'])
-        await state.update_data(current_price=product['price'])
-        await state.update_data(discount=0)
+        await state.update_data(original_price=original_price)
+        await state.update_data(current_price=current_price)
+        await state.update_data(discount=discount)
+        
+        # Показываем цену со скидкой если есть
+        if discount > 0:
+            price_text = f"Цена: {original_price} RUB → {current_price} RUB (скидка {discount}%)"
+        else:
+            price_text = f"Цена: {original_price} RUB"
         
         text = f"""Товар: {product_name}
-Цена: {product['price']} RUB
+{price_text}
 
 {product['desc']}"""
         await callback.message.edit_text(text, reply_markup=payment_keyboard)
@@ -216,10 +235,17 @@ async def pay_cryptobot(callback: types.CallbackQuery, state: FSMContext):
     data = await state.get_data()
     price_rub = data.get("current_price", 0)
     product_name = data.get("selected_product", "тариф")
+    discount = data.get("discount", 0)
     
     if price_rub == 0:
         await callback.message.answer("❌ Ошибка: выберите товар сначала")
         return
+    
+    # Показываем скидку в описании если есть
+    if discount > 0:
+        description = f"LUNAxab — {product_name} (скидка {discount}%)"
+    else:
+        description = f"LUNAxab — {product_name}"
     
     url = "https://pay.crypt.bot/api/createInvoice"
     headers = {
@@ -231,7 +257,7 @@ async def pay_cryptobot(callback: types.CallbackQuery, state: FSMContext):
         "currency_type": "fiat",
         "fiat": "RUB",
         "accepted_assets": "USDT,TON,SOL,TRX,BTC,ETH,DOGE,LTC,BNB,USDC",
-        "description": f"LUNAxab — {product_name}",
+        "description": description,
         "expires_in": 3600,
         "allow_comments": True,
         "allow_anonymous": True
@@ -248,7 +274,10 @@ async def pay_cryptobot(callback: types.CallbackQuery, state: FSMContext):
             
             await state.update_data(cryptobot_invoice_id=invoice_id)
             
-            text = f"✅ Счёт создан!\n\n🎯 Товар: {product_name}\n💰 Сумма: {price_rub} ₽"
+            if discount > 0:
+                text = f"✅ Счёт создан!\n\n🎯 Товар: {product_name}\n💰 Сумма: {price_rub} ₽ (скидка {discount}%)"
+            else:
+                text = f"✅ Счёт создан!\n\n🎯 Товар: {product_name}\n💰 Сумма: {price_rub} ₽"
             
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="💸 Оплатить", url=bot_invoice_url)],
@@ -302,7 +331,6 @@ async def check_cryptobot_payment(callback: types.CallbackQuery, state: FSMConte
                 elif status == "expired":
                     await callback.answer("❌ Счёт истёк", show_alert=True)
                 else:
-                    # Всплывающее окно вместо сообщения в чат
                     await callback.answer("❌ Платёж ещё не поступил. Попробуйте через минуту", show_alert=True)
             else:
                 await callback.answer("❌ Счёт не найден", show_alert=True)
@@ -316,15 +344,31 @@ async def check_cryptobot_payment(callback: types.CallbackQuery, state: FSMConte
 async def pay_sbp(callback: types.CallbackQuery, state: FSMContext):
     data = await state.get_data()
     product_name = data.get("selected_product", "товар")
+    current_price = data.get("current_price", 0)
+    discount = data.get("discount", 0)
     
-    text = f"""💳 СБП
+    if discount > 0:
+        text = f"""💳 СБП
 
 Для оплаты свяжитесь с менеджером: @Nastia_sup
 
 Отправьте менеджеру этот текст (нажмите на сообщение для копирования):
 
 <code>Хочу оплатить СБП
-Тариф: {product_name}</code>
+Тариф: {product_name}
+Сумма: {current_price} ₽ (скидка {discount}%)</code>
+
+Менеджер отправит вам реквизиты для оплаты"""
+    else:
+        text = f"""💳 СБП
+
+Для оплаты свяжитесь с менеджером: @Nastia_sup
+
+Отправьте менеджеру этот текст (нажмите на сообщение для копирования):
+
+<code>Хочу оплатить СБП
+Тариф: {product_name}
+Сумма: {current_price} ₽</code>
 
 Менеджер отправит вам реквизиты для оплаты"""
     
@@ -337,10 +381,28 @@ async def pay_stars(callback: types.CallbackQuery, state: FSMContext):
     data = await state.get_data()
     price_rub = data.get("current_price", 0)
     product_name = data.get("selected_product", "товар")
+    discount = data.get("discount", 0)
     
     stars_amount = int(price_rub / 1.79)
     
-    text = f"""⭐️ Telegram Stars
+    if discount > 0:
+        text = f"""⭐️ Telegram Stars
+
+Способ оплаты: ⭐️Telegram stars
+Сумма к оплате: {price_rub} RUB / {stars_amount} Stars (скидка {discount}%)
+
+📋 Инструкция:
+1️⃣ Запустите бота: @StarsovBot
+2️⃣ Нажмите «Купить звёзды» и укажите ник: @Nastia_sup
+3️⃣ Оплатите нужную сумму через СБП или карту РФ
+4️⃣ Сохраните скриншот или квитанцию
+5️⃣ Нажмите кнопку «Скинуть чек» и отправьте его
+
+✅ После оплаты вам выдадут доступ к каналу
+
+ℹ️ Так же можно оплатить подарками — перейдите по юзернейму @Nastia_sup и киньте подарки на указанную сумму, затем загрузите скриншот в бота"""
+    else:
+        text = f"""⭐️ Telegram Stars
 
 Способ оплаты: ⭐️Telegram stars
 Сумма к оплате: {price_rub} RUB / {stars_amount} Stars
@@ -403,10 +465,12 @@ async def enter_promo(callback: types.CallbackQuery, state: FSMContext):
         ])
     )
     await state.set_state(PromoState.waiting_for_promo)
+    await callback.answer()
 
 @dp.message(PromoState.waiting_for_promo)
 async def get_promo(message: types.Message, state: FSMContext):
     promo_code = message.text.lower().strip()
+    user_id = message.from_user.id
     data = await state.get_data()
     original_price = data.get("original_price", 0)
     selected_product = data.get("selected_product", "товар")
@@ -415,19 +479,30 @@ async def get_promo(message: types.Message, state: FSMContext):
         discount = PROMOCODES[promo_code]
         new_price = int(original_price * (100 - discount) / 100)
         
+        # Сохраняем скидку для пользователя
+        user_discounts[user_id] = discount
+        
+        # Обновляем текущие данные
         await state.update_data(current_price=new_price)
+        await state.update_data(discount=discount)
+        
+        # Конвертация в звезды
+        stars_amount = int(new_price / 1.79)
         
         await message.answer(
-            f"✅ Промокод активирован!\n"
-            f"💰 Скидка: {discount}%\n"
-            f"📦 {selected_product}\n"
-            f"💵 Было: {original_price} RUB\n"
-            f"🆕 Стало: {new_price} RUB\n\n"
-            f"➡️ Нажмите «🛒 Товары» и выберите товар снова",
+            f"🎯 Промокод {promo_code.upper()} активирован!\n"
+            f"💰 Скидка: {discount}%\n\n"
+            f"📦 Товар: {selected_product}\n"
+            f"💵 Было: {original_price} ₽\n"
+            f"🆕 Стало: {new_price} ₽ / {stars_amount} Stars\n\n"
+            f"✅ Нажмите «🛒 Товары» и выберите товар снова",
             reply_markup=main_keyboard
         )
     else:
-        await message.answer(f"❌ Неверный промокод", reply_markup=main_keyboard)
+        await message.answer(
+            f"❌ Неверный промокод!",
+            reply_markup=main_keyboard
+        )
     
     await state.clear()
 
