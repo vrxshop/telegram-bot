@@ -344,10 +344,16 @@ async def check_cryptobot_payment(callback: types.CallbackQuery, state: FSMConte
 async def pay_sbp(callback: types.CallbackQuery, state: FSMContext):
     data = await state.get_data()
     product_name = data.get("selected_product", "товар")
-    current_price = data.get("current_price", 0)
     discount = data.get("discount", 0)
     
     if discount > 0:
+        # Находим название промокода по скидке
+        promo_name = ""
+        for code, value in PROMOCODES.items():
+            if value == discount:
+                promo_name = code.upper()
+                break
+        
         text = f"""💳 СБП
 
 Для оплаты свяжитесь с менеджером: @Nastia_sup
@@ -356,7 +362,7 @@ async def pay_sbp(callback: types.CallbackQuery, state: FSMContext):
 
 <code>Хочу оплатить СБП
 Тариф: {product_name}
-Сумма: {current_price} ₽ (скидка {discount}%)</code>
+Промокод: {promo_name}</code>
 
 Менеджер отправит вам реквизиты для оплаты"""
     else:
@@ -367,8 +373,7 @@ async def pay_sbp(callback: types.CallbackQuery, state: FSMContext):
 Отправьте менеджеру этот текст (нажмите на сообщение для копирования):
 
 <code>Хочу оплатить СБП
-Тариф: {product_name}
-Сумма: {current_price} ₽</code>
+Тариф: {product_name}</code>
 
 Менеджер отправит вам реквизиты для оплаты"""
     
