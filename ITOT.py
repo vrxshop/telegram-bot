@@ -8,6 +8,7 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMar
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
+from aiohttp import web
 
 API_TOKEN = os.getenv("API_TOKEN")
 
@@ -94,6 +95,19 @@ async def send_to_admin(message: str):
         await bot.send_message(ADMIN_ID, message)
     except:
         pass
+
+# ========== ВЕБ-СЕРВЕР ДЛЯ UPTIMEROBOT ==========
+async def health_check(request):
+    return web.Response(text="OK")
+
+async def start_web_server():
+    app = web.Application()
+    app.router.add_get('/health', health_check)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', 8080)
+    await site.start()
+    print("✅ Веб-сервер запущен на порту 8080")
 
 # ========== СТАРТ ==========
 @dp.message(Command("start"))
@@ -404,7 +418,7 @@ async def get_promo(message: types.Message, state: FSMContext):
 async def payment_done(callback: types.CallbackQuery):
     await callback.message.edit_text("✅ Отправьте скриншот чека в этот чат")
 
-# ========== ОБРАБОТЧИКИ ДЛЯ СБП (старые) ==========
+# ========== ОБРАБОТЧИКИ ДЛЯ СБП ==========
 @dp.message(F.photo | F.document)
 async def handle_screenshot(message: types.Message):
     await message.answer("📸 Скриншот получен! Администратор проверит оплату.")
@@ -413,6 +427,10 @@ async def handle_screenshot(message: types.Message):
 # ========== ЗАПУСК ==========
 async def main():
     print("🤖 Бот запущен!")
+    
+    # Запускаем веб-сервер для health check (чтобы Render не усыплял)
+    asyncio.create_task(start_web_server())
+    
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
