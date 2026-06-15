@@ -311,31 +311,26 @@ async def check_cryptobot_payment(callback: types.CallbackQuery, state: FSMConte
     except Exception as e:
         await callback.answer("❌ Ошибка", show_alert=True)
 
-# ========== СБП С КНОПКОЙ КОПИРОВАНИЯ ==========
+# ========== СБП ==========
 @dp.callback_query(F.data == "pay_sbp")
 async def pay_sbp(callback: types.CallbackQuery, state: FSMContext):
     data = await state.get_data()
     product_name = data.get("selected_product", "товар")
     
-    # Текст для копирования
-    copy_text = f"Хочу оплатить СБП\nТариф: {product_name}"
-    
-    # Клавиатура с кнопкой копирования
-    sbp_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📋 Скопировать текст", copy_text=copy_text)],
-        [InlineKeyboardButton(text="✅ Я оплатил", callback_data="payment_done")],
-        [InlineKeyboardButton(text="✖️ Отменить", callback_data="back_to_products")]
-    ])
-    
     text = f"""💳 СБП
 
 Для оплаты свяжитесь с менеджером: @Nastia_sup
 
-Отправьте менеджеру скопированный текст
+Отправьте менеджеру этот текст:
 
-Менеджер отправит вам реквизиты для оплаты"""
+`Хочу оплатить СБП
+Тариф: {product_name}`
+
+Менеджер отправит вам реквизиты для оплаты
+
+💡 Нажмите на сообщение выше, чтобы скопировать текст"""
     
-    await callback.message.edit_text(text, reply_markup=sbp_keyboard)
+    await callback.message.edit_text(text, reply_markup=confirm_payment_keyboard)
     await callback.answer()
 
 # ========== STARS ==========
@@ -436,11 +431,11 @@ async def get_promo(message: types.Message, state: FSMContext):
 
 @dp.callback_query(F.data == "payment_done")
 async def payment_done(callback: types.CallbackQuery):
-    await callback.message.edit_text("✅ Отправьте скриншот чека")
+    await callback.message.edit_text("✅ Отправьте скриншот чека в этот чат")
 
 @dp.message(F.photo | F.document)
 async def handle_screenshot(message: types.Message):
-    await message.answer("📸 Скриншот получен!")
+    await message.answer("📸 Скриншот получен! Администратор проверит оплату.")
     await send_to_admin(f"📸 Чек от @{message.from_user.username}\nID: {message.from_user.id}")
 
 # ========== ЗАПУСК ==========
