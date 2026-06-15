@@ -109,6 +109,7 @@ async def health_check(request):
 async def start_web_server():
     app = web.Application()
     app.router.add_get('/health', health_check)
+    app.router.add_get('/', health_check)
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, '0.0.0.0', 8080)
@@ -321,14 +322,14 @@ async def pay_sbp(callback: types.CallbackQuery, state: FSMContext):
 
 Для оплаты свяжитесь с менеджером: @Nastia_sup
 
-Отправьте менеджеру этот текст:
+Отправьте менеджеру этот текст (нажмите на сообщение для копирования):
 
-`Хочу оплатить СБП
-Тариф: {product_name}`
+━━━━━━━━━━━━━━━━━━
+Хочу оплатить СБП
+Тариф: {product_name}
+━━━━━━━━━━━━━━━━━━
 
-Менеджер отправит вам реквизиты для оплаты
-
-💡 Нажмите на сообщение выше, чтобы скопировать текст"""
+Менеджер отправит вам реквизиты для оплаты"""
     
     await callback.message.edit_text(text, reply_markup=confirm_payment_keyboard)
     await callback.answer()
@@ -344,15 +345,19 @@ async def pay_stars(callback: types.CallbackQuery, state: FSMContext):
     
     text = f"""⭐️ Telegram Stars
 
-Сумма: {price_rub} RUB / {stars_amount} Stars
+Способ оплаты: ⭐️Telegram stars
+Сумма к оплате: {price_rub} RUB / {stars_amount} Stars
 
-Инструкция:
-1️⃣ Запустите @StarsovBot
-2️⃣ Купите звёзды, укажите ник: @Nastia_sup
-3️⃣ Сохраните скриншот
-4️⃣ Нажмите кнопку «Скинуть чек»
+📋 Инструкция:
+1️⃣ Запустите бота: @StarsovBot
+2️⃣ Нажмите «Купить звёзды» и укажите ник: @Nastia_sup
+3️⃣ Оплатите нужную сумму через СБП или карту РФ
+4️⃣ Сохраните скриншот или квитанцию
+5️⃣ Нажмите кнопку «Скинуть чек» и отправьте его
 
-После оплаты выдадут доступ к каналу"""
+✅ После оплаты вам выдадут доступ к каналу
+
+ℹ️ Так же можно оплатить подарками — перейдите по юзернейму @Nastia_sup и киньте подарки на указанную сумму, затем загрузите скриншот в бота"""
     
     stars_keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📎 Скинуть чек", callback_data="stars_send_check")],
