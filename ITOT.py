@@ -20,7 +20,7 @@ logging.basicConfig(level=logging.INFO)
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
-# ========== ПРОМОКОДЫ (СКРЫТЫЕ) ==========
+# ========== ПРОМОКОДЫ ==========
 PROMOCODES = {
     "save15": 15,
     "promik25": 25,
@@ -28,7 +28,7 @@ PROMOCODES = {
     "teddy60gift": 60,
 }
 
-# ========== КНОПКИ ГЛАВНОГО МЕНЮ (REPLY) ==========
+# ========== КНОПКИ ГЛАВНОГО МЕНЮ ==========
 main_keyboard = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="🛒 Товары")],
@@ -53,7 +53,6 @@ PRODUCTS = {
     "⚡️👑ВСЕ СРАЗУ👑⚡️": {"price": 1500, "desc": "Все категории одним пакетом 😋✅"}
 }
 
-# Клавиатура товаров (2 столбца) - БЕЗ КНОПКИ "НАЗАД"
 product_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🍑1000-видео🍑", callback_data="product_🍑1000-видео🍑"),
      InlineKeyboardButton(text="☀️2000-видео☀️", callback_data="product_☀️2000-видео☀️")],
@@ -69,7 +68,6 @@ product_keyboard = InlineKeyboardMarkup(inline_keyboard=[
      InlineKeyboardButton(text="⚡️👑ВСЕ СРАЗУ👑⚡️", callback_data="product_⚡️👑ВСЕ СРАЗУ👑⚡️")],
 ])
 
-# Клавиатура оплаты
 payment_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="💳 СБП", callback_data="pay_sbp")],
     [InlineKeyboardButton(text="🤖 CryptoBot", callback_data="pay_cryptobot")],
@@ -104,7 +102,7 @@ async def send_to_admin(message: str):
     except:
         pass
 
-# ========== ВЕБ-СЕРВЕР ДЛЯ UPTIMEROBOT ==========
+# ========== ВЕБ-СЕРВЕР ==========
 async def health_check(request):
     return web.Response(text="OK")
 
@@ -115,7 +113,7 @@ async def start_web_server():
     await runner.setup()
     site = web.TCPSite(runner, '0.0.0.0', 8080)
     await site.start()
-    print("✅ Веб-сервер запущен на порту 8080")
+    print("✅ Веб-сервер запущен")
 
 # ========== СТАРТ ==========
 @dp.message(Command("start"))
@@ -127,7 +125,7 @@ async def start(message: types.Message):
 async def show_products(message: types.Message):
     await message.answer("Выберите товар:", reply_markup=product_keyboard)
 
-# ========== ПОДДЕРЖКА (ОБРАТНАЯ СВЯЗЬ) ==========
+# ========== ПОДДЕРЖКА ==========
 @dp.message(F.text == "✉️ Обратная связь")
 async def feedback_start(message: types.Message, state: FSMContext):
     await state.set_state(SupportStates.waiting_for_message)
@@ -144,10 +142,7 @@ async def send_to_admin_feedback(message: types.Message, state: FSMContext):
     
     await bot.send_message(
         ADMIN_ID,
-        f"📨 НОВОЕ СООБЩЕНИЕ\n"
-        f"👤 @{username}\n"
-        f"🆔 ID: {user_id}\n\n"
-        f"💬 {message.text}",
+        f"📨 НОВОЕ СООБЩЕНИЕ\n👤 @{username}\n🆔 ID: {user_id}\n\n💬 {message.text}",
         reply_markup=keyboard
     )
     
@@ -169,25 +164,24 @@ async def send_reply_to_user(message: types.Message, state: FSMContext):
     
     if user_id:
         await bot.send_message(user_id, f"📬 Ответ от поддержки:\n\n{message.text}")
-        await message.answer(f"✅ Ответ отправлен пользователю {user_id}")
+        await message.answer(f"✅ Ответ отправлен")
     else:
-        await message.answer("❌ Ошибка: пользователь не найден")
-    
+        await message.answer("❌ Ошибка")
     await state.clear()
 
 # ========== ЯЗЫК ==========
 @dp.message(F.text == "🌐 Язык")
 @dp.message(Command("lang"))
 async def change_lang(message: types.Message):
-    await message.answer("🌐 Выбор языка / Language Selection\n\nВыберите предпочитаемый язык.", reply_markup=lang_keyboard)
+    await message.answer("🌐 Выбор языка", reply_markup=lang_keyboard)
 
 @dp.message(F.text == "Русский")
 async def set_russian(message: types.Message):
-    await message.answer("Язык установлен: Русский", reply_markup=main_keyboard)
+    await message.answer("Язык: Русский", reply_markup=main_keyboard)
 
 @dp.message(F.text == "English")
 async def set_english(message: types.Message):
-    await message.answer("Language set: English", reply_markup=main_keyboard)
+    await message.answer("Language: English", reply_markup=main_keyboard)
 
 # ========== ТОВАРЫ ==========
 @dp.callback_query(F.data.startswith("product_"))
@@ -253,7 +247,7 @@ async def pay_cryptobot(callback: types.CallbackQuery, state: FSMContext):
             
             await state.update_data(cryptobot_invoice_id=invoice_id)
             
-            text = f"✅ Счёт создан!\n\n🎯 Товар: {product_name}\n💰 Сумма: {price_rub} ₽\n\n💎 Доступные валюты: USDT, TON, SOL, TRX, BTC, ETH, DOGE, LTC, BNB, USDC"
+            text = f"✅ Счёт создан!\n\n🎯 Товар: {product_name}\n💰 Сумма: {price_rub} ₽"
             
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="💸 Оплатить", url=bot_invoice_url)],
@@ -268,7 +262,7 @@ async def pay_cryptobot(callback: types.CallbackQuery, state: FSMContext):
 
 @dp.callback_query(F.data == "check_cryptobot_payment")
 async def check_cryptobot_payment(callback: types.CallbackQuery, state: FSMContext):
-    await callback.answer("🔄 Проверяем оплату...")
+    await callback.answer("🔄 Проверка...")
     
     data = await state.get_data()
     invoice_id = data.get("cryptobot_invoice_id")
@@ -297,13 +291,11 @@ async def check_cryptobot_payment(callback: types.CallbackQuery, state: FSMConte
                         f"✅ ОПЛАТА ПОДТВЕРЖДЕНА!\n\n"
                         f"📦 Товар: {product_name}\n"
                         f"💰 Сумма: {price} ₽\n\n"
-                        f"🎉 Ссылка на канал: https://t.me/+cHjJzv1hvZdjNGIx\n\n"
-                        f"📌 Пересылка сообщений открыта\n"
-                        f"🔄 Бессрочная гарантия"
+                        f"🎉 Ссылка на канал: https://t.me/+cHjJzv1hvZdjNGIx"
                     )
                     await send_to_admin(
                         f"🔔 ОПЛАТА CryptoBot\n"
-                        f"👤 @{callback.from_user.username or callback.from_user.first_name}\n"
+                        f"👤 @{callback.from_user.username}\n"
                         f"📦 {product_name}\n"
                         f"💰 {price} ₽"
                     )
@@ -311,26 +303,25 @@ async def check_cryptobot_payment(callback: types.CallbackQuery, state: FSMConte
                 elif status == "expired":
                     await callback.answer("❌ Счёт истёк", show_alert=True)
                 else:
-                    await callback.answer("⏳ Платёж ещё не поступил. Попробуйте через 1-2 минуты.", show_alert=True)
+                    await callback.answer("⏳ Платёж ещё не поступил. Попробуйте через минуту", show_alert=True)
             else:
                 await callback.answer("❌ Счёт не найден", show_alert=True)
         else:
-            await callback.answer("❌ Ошибка при проверке", show_alert=True)
+            await callback.answer("❌ Ошибка", show_alert=True)
     except Exception as e:
-        await callback.answer(f"❌ Ошибка", show_alert=True)
+        await callback.answer("❌ Ошибка", show_alert=True)
 
-# ========== СБП (КОПИРУЕМЫЙ ТЕКСТ) ==========
+# ========== СБП ==========
 @dp.callback_query(F.data == "pay_sbp")
 async def pay_sbp(callback: types.CallbackQuery, state: FSMContext):
     data = await state.get_data()
     product_name = data.get("selected_product", "товар")
-    price = data.get("current_price", 0)
     
     text = f"""💳 СБП
 
 Для оплаты свяжитесь с менеджером: @Nastia_sup
 
-📋 Отправьте менеджеру этот текст:
+Отправьте менеджеру этот текст:
 
 <code>Хочу оплатить СБП
 Тариф: {product_name}</code>
@@ -342,7 +333,7 @@ async def pay_sbp(callback: types.CallbackQuery, state: FSMContext):
     await callback.message.edit_text(text, reply_markup=confirm_payment_keyboard)
     await callback.answer()
 
-# ========== TELEGRAM STARS ==========
+# ========== STARS ==========
 @dp.callback_query(F.data == "pay_stars")
 async def pay_stars(callback: types.CallbackQuery, state: FSMContext):
     data = await state.get_data()
@@ -353,19 +344,15 @@ async def pay_stars(callback: types.CallbackQuery, state: FSMContext):
     
     text = f"""⭐️ Telegram Stars
 
-Способ оплаты: ⭐️Telegram stars
-Сумма к оплате: {price_rub} RUB / {stars_amount} Stars
+Сумма: {price_rub} RUB / {stars_amount} Stars
 
-📋 Инструкция:
-1️⃣ Запустите бота: @StarsovBot
-2️⃣ Нажмите «Купить звёзды» и укажите ник: @Nastia_sup
-3️⃣ Оплатите нужную сумму через СБП или карту РФ
-4️⃣ Сохраните скриншот или квитанцию
-5️⃣ Нажмите кнопку «Скинуть чек» и отправьте его
+Инструкция:
+1️⃣ Запустите @StarsovBot
+2️⃣ Купите звёзды, укажите ник: @Nastia_sup
+3️⃣ Сохраните скриншот
+4️⃣ Нажмите кнопку «Скинуть чек»
 
-✅ После оплаты вам выдадут доступ к каналу
-
-ℹ️ Так же можно оплатить подарками — перейдите по юзернейму @Nastia_sup и киньте подарки на указанную сумму, затем загрузите скриншот в бота"""
+После оплаты выдадут доступ к каналу"""
     
     stars_keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📎 Скинуть чек", callback_data="stars_send_check")],
@@ -389,27 +376,22 @@ async def stars_handle_screenshot(message: types.Message, state: FSMContext):
     username = message.from_user.username or message.from_user.first_name
     user_id = message.from_user.id
     
-    caption = f"""⭐️ НОВАЯ ЗАЯВКА НА ОПЛАТУ STARS
+    caption = f"""⭐️ НОВАЯ ЗАЯВКА STARS
 
-👤 Пользователь: @{username}
-🆔 ID: {user_id}
-📦 Товар: {product_name}
-💰 Сумма: {price} RUB"""
+👤 @{username}
+🆔 {user_id}
+📦 {product_name}
+💰 {price} RUB"""
     
-    await bot.send_photo(
-        ADMIN_ID,
-        photo=message.photo[-1].file_id,
-        caption=caption
-    )
-    
-    await message.answer("✅ Скриншот получен! Администратор проверит оплату и выдаст доступ.")
+    await bot.send_photo(ADMIN_ID, photo=message.photo[-1].file_id, caption=caption)
+    await message.answer("✅ Скриншот получен! Администратор проверит оплату.")
     await state.clear()
 
 @dp.message(StarsPaymentState.waiting_for_screenshot)
 async def stars_invalid_screenshot(message: types.Message):
-    await message.answer("❌ Пожалуйста, отправьте скриншот в виде фото (изображение)")
+    await message.answer("❌ Отправьте фото скриншота")
 
-# ========== ПРОМОКОДЫ (СКРЫТЫЕ) ==========
+# ========== ПРОМОКОДЫ ==========
 @dp.callback_query(F.data == "enter_promo")
 async def enter_promo(callback: types.CallbackQuery, state: FSMContext):
     await callback.message.edit_text(
@@ -432,15 +414,14 @@ async def get_promo(message: types.Message, state: FSMContext):
         new_price = int(original_price * (100 - discount) / 100)
         
         await state.update_data(current_price=new_price)
-        await state.update_data(discount=discount)
         
         await message.answer(
             f"✅ Промокод активирован!\n"
             f"💰 Скидка: {discount}%\n"
-            f"📦 Товар: {selected_product}\n"
+            f"📦 {selected_product}\n"
             f"💵 Было: {original_price} RUB\n"
             f"🆕 Стало: {new_price} RUB\n\n"
-            f"➡️ Нажмите «🛒 Товары» в меню и выберите товар снова",
+            f"➡️ Нажмите «🛒 Товары» и выберите товар снова",
             reply_markup=main_keyboard
         )
     else:
@@ -450,20 +431,17 @@ async def get_promo(message: types.Message, state: FSMContext):
 
 @dp.callback_query(F.data == "payment_done")
 async def payment_done(callback: types.CallbackQuery):
-    await callback.message.edit_text("✅ Отправьте скриншот чека в этот чат")
+    await callback.message.edit_text("✅ Отправьте скриншот чека")
 
-# ========== ОБРАБОТЧИКИ ДЛЯ СБП ==========
 @dp.message(F.photo | F.document)
 async def handle_screenshot(message: types.Message):
-    await message.answer("📸 Скриншот получен! Администратор проверит оплату.")
+    await message.answer("📸 Скриншот получен!")
     await send_to_admin(f"📸 Чек от @{message.from_user.username}\nID: {message.from_user.id}")
 
 # ========== ЗАПУСК ==========
 async def main():
     print("🤖 Бот запущен!")
-    
     asyncio.create_task(start_web_server())
-    
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
