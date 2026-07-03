@@ -1,530 +1,221 @@
-import asyncio
 import logging
-import os
-import requests
 from aiogram import Bot, Dispatcher, types, F
-from aiogram.filters import Command
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.fsm.state import State, StatesGroup
-from aiogram.fsm.context import FSMContext
-from aiohttp import web
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
+from aiogram.filters import CommandStart
+from aiogram.enums import ParseMode
+from aiogram.client.default import DefaultBotProperties  # <--- ВАЖНАЯ СТРОКА (ДОБАВИЛ)
+import asyncio
 
-API_TOKEN = os.getenv("API_TOKEN")
+# --- КОНФИГУРАЦИЯ ---
+BOT_TOKEN = "8298399133:AAFl5uIYOCCXIh6TM6Dn0AonL-Lyq39Wa3s"  # Вставь токен
 
-# ========== ДАННЫЕ ИЗ ПЕРЕМЕННЫХ ==========
-CRYPTOBOT_TOKEN = os.getenv("CRYPTOBOT_TOKEN")
-ADMIN_ID = 8559381302
+# НАЗВАНИЕ ТВОЕГО ПРОЕКТА (ЗАМЕНИ НА СВОЕ!)
+PROJECT_NAME = "VIP КАНАЛ"
 
-logging.basicConfig(level=logging.INFO)
-bot = Bot(token=API_TOKEN)
-dp = Dispatcher(storage=MemoryStorage())
-
-# ========== ХРАНИЛИЩЕ ДЛЯ СКИДОК ПОЛЬЗОВАТЕЛЕЙ ==========
-user_discounts = {}
-
-# ========== ПРОМОКОДЫ ==========
-PROMOCODES = {
-    "save15": 15,
-    "promik25": 25,
-    "promokodzirolik40": 40,
-    "teddy60gift": 60,
+# ССЫЛКИ НА ДОКУМЕНТЫ (Твои)
+DOCS = {
+    "offer": "https://telegra.ph/POLZOVATELSKOE-SOGLASHENIE-07-01-29",
+    "policy": "https://telegra.ph/Politika-konfidicialnosti-07-01"
 }
 
-# ========== КНОПКИ ГЛАВНОГО МЕНЮ ==========
-main_keyboard = ReplyKeyboardMarkup(
-    keyboard=[
-        [KeyboardButton(text="🛒 Товары")],
-        [KeyboardButton(text="✉️ Обратная связь"), KeyboardButton(text="🌐 Язык")]
-    ],
-    resize_keyboard=True
-)
+# Твой контакт для кнопки поддержки
+SUPPORT_CONTACT = "https://t.me/Nastia_sup" 
 
-# ========== ТОВАРЫ ==========
-PRODUCTS = {
-    "🍑1000-видео🍑": {"price": 150, "desc": "1000 отборных видео💎\n\nпересыл сообщений открыт\nБессрочная гарантия 🔥"},
-    "☀️2000-видео☀️": {"price": 180, "desc": "2000 отборных видео💎\n\nпересыл сообщений открыт\nБессрочная гарантия 🔥"},
-    "🧸4000-видео🧸": {"price": 330, "desc": "4000 отборных видео💎\n\nпересыл сообщений открыт\nБессрочная гарантия 🔥"},
-    "👄6000-видео👄": {"price": 400, "desc": "6000 отборных видео💎\n\nпересыл сообщений открыт\nБессрочная гарантия 🔥"},
-    "🎀10 000-видео🎀": {"price": 500, "desc": "10 000 отборных видео💎\n\nпересыл сообщений открыт\nБессрочная гарантия 🔥"},
-    "⚡️20 000-видео⚡️": {"price": 600, "desc": "20 000 отборных видео💎\n\nпересыл сообщений открыт\nБессрочная гарантия 🔥"},
-    "🏫clиvы в шķołe🏫": {"price": 300, "desc": "31фото/225 видео + приватка пополняется ✅✨"},
-    "🪩pábыни+slivы+kryжki🪩": {"price": 250, "desc": "129фото/400 отборных видео💎"},
-    "🍑cóló wķolницы🍑": {"price": 250, "desc": "1000 отборных видео💎"},
-    "🍑не colo wķolniцы🍑": {"price": 250, "desc": "1000 отборных видео💎"},
-    "🎉NEW VPISKA🎉": {"price": 250, "desc": "129фото/400видео отборных 💎"},
-    "⚡️👑ВСЕ СРАЗУ👑⚡️": {"price": 1500, "desc": "Все категории одним пакетом 😋✅"}
+# Настройка тарифов
+TARIFFS = {
+    "month": {
+        "name": "VIP на месяц 🚀",
+        "price_rub": 349,
+        "price_stars": 300,
+        "duration": "1 мес.",
+        "description": "Доступ к приватке на месяц! 🦄\n\nИнст Рина\nДаша Дошик\nЛиза Анохина\nXdhka\nВаля Карнавал\nДаша Дошик\nИнстасамка\nСвета Соллар\nИ множество других блогерш\n\nДипфейков нет, только реальные сливы и засветы от блогерш ❤️"
+    },
+    "forever": {
+        "name": "VIP навсегда 👑",
+        "price_rub": 499,
+        "price_stars": 450,
+        "duration": "Навсегда",
+        "description": "Доступ к приватке навсегда! 🦄\n\nИнст Рина\nДаша Дошик\nЛиза Анохина\nXdhka\nВаля Карнавал\nДаша Дошик\nИнстасамка\nСвета Соллар\nИ множество других блогерш\n\nДипфейков нет, только реальные сливы и засветы от блогерш ❤️"
+    },
+    "leaks": {
+        "name": "СЛИВЫ АЛЬТУШЕК 🦄",
+        "price_rub": 299,
+        "price_stars": 270,
+        "duration": "Навсегда",
+        "description": "Сливы альтушек 🦄\n\nБольше тысячи видосов, домашки альтушек, онлики и так далее 🔥\n\nДОСТУП ДАЕТСЯ НАВСЕГДА!!!"
+    },
+    "all_at_once": {
+        "name": "ВСЕ СРАЗУ 🔥",
+        "price_rub": 699,
+        "price_stars": 550,
+        "duration": "Навсегда",
+        "description": "Даю доступ навсегда во все приватки и во все следующие, которые будут добавляться\n\nСамый выгодный тариф!"
+    }
 }
 
-product_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text="🍑1000-видео🍑", callback_data="product_🍑1000-видео🍑"),
-     InlineKeyboardButton(text="☀️2000-видео☀️", callback_data="product_☀️2000-видео☀️")],
-    [InlineKeyboardButton(text="🧸4000-видео🧸", callback_data="product_🧸4000-видео🧸"),
-     InlineKeyboardButton(text="👄6000-видео👄", callback_data="product_👄6000-видео👄")],
-    [InlineKeyboardButton(text="🎀10 000-видео🎀", callback_data="product_🎀10 000-видео🎀"),
-     InlineKeyboardButton(text="⚡️20 000-видео⚡️", callback_data="product_⚡️20 000-видео⚡️")],
-    [InlineKeyboardButton(text="🏫clиvы в шķołe🏫", callback_data="product_🏫clиvы в шķołe🏫"),
-     InlineKeyboardButton(text="🪩pábыни+slivы+kryжki🪩", callback_data="product_🪩pábыни+slivы+kryжki🪩")],
-    [InlineKeyboardButton(text="🍑cóló wķolницы🍑", callback_data="product_🍑cóló wķolницы🍑"),
-     InlineKeyboardButton(text="🍑не colo wķolniцы🍑", callback_data="product_🍑не colo wķolniцы🍑")],
-    [InlineKeyboardButton(text="🎉NEW VPISKA🎉", callback_data="product_🎉NEW VPISKA🎉"),
-     InlineKeyboardButton(text="⚡️👑ВСЕ СРАЗУ👑⚡️", callback_data="product_⚡️👑ВСЕ СРАЗУ👑⚡️")],
-])
+# Инициализация бота (ИСПРАВЛЕННАЯ СТРОКА!)
+bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+dp = Dispatcher()
 
-payment_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text="💳 СБП", callback_data="pay_sbp")],
-    [InlineKeyboardButton(text="🤖 CryptoBot", callback_data="pay_cryptobot")],
-    [InlineKeyboardButton(text="⭐️ Telegram stars", callback_data="pay_stars")],
-    [InlineKeyboardButton(text="🎁 Промокод", callback_data="enter_promo")],
-    [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_products")]
-])
+# --- КЛАВИАТУРЫ ---
 
-confirm_payment_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text="✅ Я оплатил", callback_data="payment_done")],
-    [InlineKeyboardButton(text="✖️ Отменить", callback_data="back_to_products")]
-])
+def get_main_keyboard():
+    kb = ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🛍️ Прайс"), KeyboardButton(text="🎁 Подписки")]
+        ],
+        resize_keyboard=True
+    )
+    return kb
 
-lang_keyboard = ReplyKeyboardMarkup(
-    keyboard=[[KeyboardButton(text="Русский"), KeyboardButton(text="English")]],
-    resize_keyboard=True
-)
+def get_tariff_keyboard():
+    buttons = []
+    for key, data in TARIFFS.items():
+        buttons.append([InlineKeyboardButton(text=f"{data['name']} • {data['price_rub']} RUB", callback_data=f"tariff_{key}")])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
 
-class PromoState(StatesGroup):
-    waiting_for_promo = State()
-
-class SupportStates(StatesGroup):
-    waiting_for_message = State()
-    admin_waiting_reply = State()
-
-class StarsPaymentState(StatesGroup):
-    waiting_for_screenshot = State()
-
-async def send_to_admin(message: str):
-    try:
-        await bot.send_message(ADMIN_ID, message)
-    except:
-        pass
-
-# ========== ВЕБ-СЕРВЕР ==========
-async def health_check(request):
-    return web.Response(text="OK")
-
-async def start_web_server():
-    app = web.Application()
-    app.router.add_get('/health', health_check)
-    app.router.add_get('/', health_check)
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, '0.0.0.0', 8080)
-    await site.start()
-    print("✅ Веб-сервер запущен")
-
-# ========== СТАРТ ==========
-@dp.message(Command("start"))
-async def start(message: types.Message):
-    await message.answer("🔞LUNAxab🔞\n\nДобро пожаловать в бот!")
-    await message.answer("Выберите товар:", reply_markup=product_keyboard)
-
-@dp.message(F.text == "🛒 Товары")
-async def show_products(message: types.Message):
-    await message.answer("Выберите товар:", reply_markup=product_keyboard)
-
-# ========== ПОДДЕРЖКА ==========
-@dp.message(F.text == "✉️ Обратная связь")
-async def feedback_start(message: types.Message, state: FSMContext):
-    await state.set_state(SupportStates.waiting_for_message)
-    await message.answer("📝 Напишите ваше сообщение для поддержки:")
-
-@dp.message(SupportStates.waiting_for_message)
-async def send_to_admin_feedback(message: types.Message, state: FSMContext):
-    user_id = message.from_user.id
-    username = message.from_user.username or message.from_user.first_name
-    
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✍️ Ответить", callback_data=f"reply_{user_id}")]
+def get_payment_method_keyboard(tariff_key):
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=f"{TARIFFS[tariff_key]['price_rub']} RUB", callback_data=f"pay_rub_{tariff_key}")],
+        [InlineKeyboardButton(text=f"{TARIFFS[tariff_key]['price_stars']} STARS", callback_data=f"pay_stars_{tariff_key}")],
+        [InlineKeyboardButton(text="◀️ Назад", callback_data="back_to_prices")]
     ])
+    return kb
+
+def get_payment_action_keyboard(payment_url, tariff_key):
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="💳 Перейти к оплате", url=payment_url)],
+        [InlineKeyboardButton(text="💰 Я оплатил", callback_data=f"check_payment_{tariff_key}")],
+        [InlineKeyboardButton(text="◀️ Назад", callback_data="back_to_prices")]
+    ])
+    return kb
+
+def go_to_prices_keyboard():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📋 К прайсу", callback_data="back_to_prices")]
+    ])
+
+# --- ЛОГИКА ---
+
+@dp.message(CommandStart())
+async def cmd_start(message: Message):
+    text = (
+        f"👋 Привет, {message.from_user.first_name}!\n\n"
+        f"<a href=\"{DOCS['offer']}\">Пользовательское соглашение</a>\n"
+        f"<a href=\"{DOCS['policy']}\">Политика конфиденциальности</a>\n\n"
+        f"Данный бот создан на платформе @TweetlyRobot"
+    )
+    await message.answer(text, reply_markup=get_main_keyboard(), disable_web_page_preview=True)
+
+@dp.message(F.text == "🛍️ Прайс")
+async def show_prices(message: Message):
+    text = "📋 <b>Прайс</b>\n\nВыберите тариф, чтобы узнать подробности и оформить покупку."
+    await message.answer(text, reply_markup=get_tariff_keyboard())
+
+@dp.message(F.text == "🎁 Подписки")
+async def show_subscriptions(message: Message):
+    text = (
+        "📋 <b>Ваши подписки</b>\n\n"
+        "У вас пока нет активных подписок.\n"
+        "Выберите тариф, чтобы оформить доступ."
+    )
+    await message.answer(text, reply_markup=go_to_prices_keyboard())
+
+@dp.callback_query(F.data == "back_to_prices")
+async def back_to_prices(callback: CallbackQuery):
+    await callback.answer()
+    text = "📋 <b>Прайс</b>\n\nВыберите тариф, чтобы узнать подробности и оформить покупку."
+    await callback.message.edit_text(text, reply_markup=get_tariff_keyboard())
+
+@dp.callback_query(F.data.startswith("tariff_"))
+async def show_tariff_details(callback: CallbackQuery):
+    tariff_key = callback.data.replace("tariff_", "")
+    tariff = TARIFFS[tariff_key]
     
-    await bot.send_message(
-        ADMIN_ID,
-        f"📨 НОВОЕ СООБЩЕНИЕ\n👤 @{username}\n🆔 ID: {user_id}\n\n💬 {message.text}",
-        reply_markup=keyboard
+    text = (
+        f"📋 <b>{tariff['name']}</b>\n\n"
+        f"💰 Цена: {tariff['price_rub']} RUB\n\n"
+        f"📝 <b>Описание тарифа:</b>\n{tariff['description']}\n\n"
+        f"🔒 <b>Будет получен доступ на срок {tariff['duration']} к:</b>\n"
+        f"• {PROJECT_NAME} (внешняя ссылка)"
     )
     
-    await message.answer("✅ Сообщение отправлено!")
-    await state.clear()
-
-@dp.callback_query(F.data.startswith("reply_"))
-async def admin_reply_start(callback: types.CallbackQuery, state: FSMContext):
-    user_id = int(callback.data.split("_")[1])
-    await state.update_data(reply_user_id=user_id)
-    await state.set_state(SupportStates.admin_waiting_reply)
-    await callback.message.answer(f"✍️ Напишите ответ для пользователя (ID: {user_id}):")
-    await callback.answer()
-
-@dp.message(SupportStates.admin_waiting_reply)
-async def send_reply_to_user(message: types.Message, state: FSMContext):
-    data = await state.get_data()
-    user_id = data.get("reply_user_id")
-    
-    if user_id:
-        await bot.send_message(user_id, f"📬 Ответ от поддержки:\n\n{message.text}")
-        await message.answer(f"✅ Ответ отправлен")
-    else:
-        await message.answer("❌ Ошибка")
-    await state.clear()
-
-# ========== ЯЗЫК ==========
-@dp.message(F.text == "🌐 Язык")
-@dp.message(Command("lang"))
-async def change_lang(message: types.Message):
-    await message.answer("🌐 Выбор языка", reply_markup=lang_keyboard)
-
-@dp.message(F.text == "Русский")
-async def set_russian(message: types.Message):
-    await message.answer("Язык: Русский", reply_markup=main_keyboard)
-
-@dp.message(F.text == "English")
-async def set_english(message: types.Message):
-    await message.answer("Language: English", reply_markup=main_keyboard)
-
-# ========== ТОВАРЫ (с учетом скидки) ==========
-@dp.callback_query(F.data.startswith("product_"))
-async def product_detail(callback: types.CallbackQuery, state: FSMContext):
-    product_name = callback.data.replace("product_", "")
-    product = PRODUCTS.get(product_name)
-    user_id = callback.from_user.id
-    
-    if product:
-        original_price = product['price']
-        
-        # Проверяем есть ли у пользователя активная скидка
-        discount = user_discounts.get(user_id, 0)
-        if discount > 0:
-            current_price = int(original_price * (100 - discount) / 100)
-        else:
-            current_price = original_price
-        
-        await state.update_data(selected_product=product_name)
-        await state.update_data(original_price=original_price)
-        await state.update_data(current_price=current_price)
-        await state.update_data(discount=discount)
-        
-        # Показываем цену со скидкой если есть
-        if discount > 0:
-            price_text = f"Цена: {original_price} RUB → {current_price} RUB (скидка {discount}%)"
-        else:
-            price_text = f"Цена: {original_price} RUB"
-        
-        text = f"""Товар: {product_name}
-{price_text}
-
-{product['desc']}"""
-        await callback.message.edit_text(text, reply_markup=payment_keyboard)
-    await callback.answer()
-
-@dp.callback_query(F.data == "back_to_products")
-async def back_to_products(callback: types.CallbackQuery):
-    await callback.message.edit_text("Выберите товар:", reply_markup=product_keyboard)
-    await callback.answer()
-
-# ========== CRYPTOBOT ==========
-@dp.callback_query(F.data == "pay_cryptobot")
-async def pay_cryptobot(callback: types.CallbackQuery, state: FSMContext):
-    await callback.answer("🔄 Создаём счёт...")
-    
-    data = await state.get_data()
-    price_rub = data.get("current_price", 0)
-    product_name = data.get("selected_product", "тариф")
-    discount = data.get("discount", 0)
-    
-    if price_rub == 0:
-        await callback.message.answer("❌ Ошибка: выберите товар сначала")
-        return
-    
-    # Показываем скидку в описании если есть
-    if discount > 0:
-        description = f"LUNAxab — {product_name} (скидка {discount}%)"
-    else:
-        description = f"LUNAxab — {product_name}"
-    
-    url = "https://pay.crypt.bot/api/createInvoice"
-    headers = {
-        "Crypto-Pay-API-Token": CRYPTOBOT_TOKEN,
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "amount": str(price_rub),
-        "currency_type": "fiat",
-        "fiat": "RUB",
-        "accepted_assets": "USDT,TON,SOL,TRX,BTC,ETH,DOGE,LTC,BNB,USDC",
-        "description": description,
-        "expires_in": 3600,
-        "allow_comments": True,
-        "allow_anonymous": True
-    }
-    
-    try:
-        response = requests.post(url, headers=headers, json=payload, timeout=30)
-        result = response.json()
-        
-        if result.get("ok"):
-            invoice = result["result"]
-            invoice_id = invoice["invoice_id"]
-            bot_invoice_url = invoice["bot_invoice_url"]
-            
-            await state.update_data(cryptobot_invoice_id=invoice_id)
-            
-            if discount > 0:
-                text = f"✅ Счёт создан!\n\n🎯 Товар: {product_name}\n💰 Сумма: {price_rub} ₽ (скидка {discount}%)"
-            else:
-                text = f"✅ Счёт создан!\n\n🎯 Товар: {product_name}\n💰 Сумма: {price_rub} ₽"
-            
-            keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="💸 Оплатить", url=bot_invoice_url)],
-                [InlineKeyboardButton(text="🔄 Проверить оплату", callback_data="check_cryptobot_payment")],
-                [InlineKeyboardButton(text="👈 Назад", callback_data="back_to_products")]
-            ])
-            await callback.message.edit_text(text, reply_markup=keyboard)
-        else:
-            await callback.message.answer(f"❌ Ошибка: {result.get('error')}")
-    except Exception as e:
-        await callback.message.answer(f"❌ Ошибка: {e}")
-
-@dp.callback_query(F.data == "check_cryptobot_payment")
-async def check_cryptobot_payment(callback: types.CallbackQuery, state: FSMContext):
-    data = await state.get_data()
-    invoice_id = data.get("cryptobot_invoice_id")
-    price = data.get("current_price", 0)
-    product_name = data.get("selected_product", "товар")
-    
-    if not invoice_id:
-        await callback.answer("❌ Счёт не найден", show_alert=True)
-        return
-    
-    url = "https://pay.crypt.bot/api/getInvoices"
-    headers = {"Crypto-Pay-API-Token": CRYPTOBOT_TOKEN}
-    params = {"invoice_ids": invoice_id}
-    
-    try:
-        response = requests.get(url, headers=headers, params=params, timeout=30)
-        result = response.json()
-        
-        if result.get("ok") and result.get("result"):
-            items = result["result"].get("items", [])
-            if items:
-                status = items[0].get("status")
-                
-                if status == "paid":
-                    await callback.message.answer(
-                        f"✅ ОПЛАТА ПОДТВЕРЖДЕНА!\n\n"
-                        f"📦 Товар: {product_name}\n"
-                        f"💰 Сумма: {price} ₽\n\n"
-                        f"🎉 Ссылка на канал: https://t.me/+cHjJzv1hvZdjNGIx"
-                    )
-                    await send_to_admin(
-                        f"🔔 ОПЛАТА CryptoBot\n"
-                        f"👤 @{callback.from_user.username}\n"
-                        f"📦 {product_name}\n"
-                        f"💰 {price} ₽"
-                    )
-                    await state.update_data(cryptobot_invoice_id=None)
-                elif status == "expired":
-                    await callback.answer("❌ Счёт истёк", show_alert=True)
-                else:
-                    await callback.answer("❌ Платёж ещё не поступил. Попробуйте через минуту", show_alert=True)
-            else:
-                await callback.answer("❌ Счёт не найден", show_alert=True)
-        else:
-            await callback.answer("❌ Ошибка при проверке", show_alert=True)
-    except Exception as e:
-        await callback.answer("❌ Ошибка", show_alert=True)
-
-# ========== СБП ==========
-@dp.callback_query(F.data == "pay_sbp")
-async def pay_sbp(callback: types.CallbackQuery, state: FSMContext):
-    data = await state.get_data()
-    product_name = data.get("selected_product", "товар")
-    discount = data.get("discount", 0)
-    
-    if discount > 0:
-        # Находим название промокода по скидке
-        promo_name = ""
-        for code, value in PROMOCODES.items():
-            if value == discount:
-                promo_name = code.upper()
-                break
-        
-        text = f"""💳 СБП
-
-Для оплаты свяжитесь с менеджером: @Nastia_sup
-
-Отправьте менеджеру этот текст (нажмите на сообщение для копирования):
-
-<code>Хочу оплатить СБП
-Тариф: {product_name}
-Промокод: {promo_name}</code>
-
-Менеджер отправит вам реквизиты для оплаты"""
-    else:
-        text = f"""💳 СБП
-
-Для оплаты свяжитесь с менеджером: @Nastia_sup
-
-Отправьте менеджеру этот текст (нажмите на сообщение для копирования):
-
-<code>Хочу оплатить СБП
-Тариф: {product_name}</code>
-
-Менеджер отправит вам реквизиты для оплаты"""
-    
-    await callback.message.edit_text(text, parse_mode="HTML", reply_markup=confirm_payment_keyboard)
-    await callback.answer()
-
-# ========== STARS ==========
-@dp.callback_query(F.data == "pay_stars")
-async def pay_stars(callback: types.CallbackQuery, state: FSMContext):
-    data = await state.get_data()
-    price_rub = data.get("current_price", 0)
-    product_name = data.get("selected_product", "товар")
-    discount = data.get("discount", 0)
-    
-    stars_amount = int(price_rub / 1.79)
-    
-    if discount > 0:
-        text = f"""⭐️ Telegram Stars
-
-Способ оплаты: ⭐️Telegram stars
-Сумма к оплате: {price_rub} RUB / {stars_amount} Stars (скидка {discount}%)
-
-📋 Инструкция:
-1️⃣ Запустите бота: @StarsovBot
-2️⃣ Нажмите «Купить звёзды» и укажите ник: @Nastia_sup
-3️⃣ Оплатите нужную сумму через СБП или карту РФ
-4️⃣ Сохраните скриншот или квитанцию
-5️⃣ Нажмите кнопку «Скинуть чек» и отправьте его
-
-✅ После оплаты вам выдадут доступ к каналу
-
-ℹ️ Так же можно оплатить подарками — перейдите по юзернейму @Nastia_sup и киньте подарки на указанную сумму, затем загрузите скриншот в бота"""
-    else:
-        text = f"""⭐️ Telegram Stars
-
-Способ оплаты: ⭐️Telegram stars
-Сумма к оплате: {price_rub} RUB / {stars_amount} Stars
-
-📋 Инструкция:
-1️⃣ Запустите бота: @StarsovBot
-2️⃣ Нажмите «Купить звёзды» и укажите ник: @Nastia_sup
-3️⃣ Оплатите нужную сумму через СБП или карту РФ
-4️⃣ Сохраните скриншот или квитанцию
-5️⃣ Нажмите кнопку «Скинуть чек» и отправьте его
-
-✅ После оплаты вам выдадут доступ к каналу
-
-ℹ️ Так же можно оплатить подарками — перейдите по юзернейму @Nastia_sup и киньте подарки на указанную сумму, затем загрузите скриншот в бота"""
-    
-    stars_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📎 Скинуть чек", callback_data="stars_send_check")],
-        [InlineKeyboardButton(text="👈 Назад", callback_data="back_to_products")]
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="💳 Способы оплаты", callback_data=f"choose_pay_{tariff_key}")],
+        [InlineKeyboardButton(text="◀️ Назад", callback_data="back_to_prices")]
     ])
+    await callback.message.edit_text(text, reply_markup=kb)
+
+@dp.callback_query(F.data.startswith("choose_pay_"))
+async def choose_payment(callback: CallbackQuery):
+    tariff_key = callback.data.replace("choose_pay_", "")
+    tariff = TARIFFS[tariff_key]
     
-    await callback.message.edit_text(text, reply_markup=stars_keyboard)
-    await callback.answer()
-
-@dp.callback_query(F.data == "stars_send_check")
-async def stars_send_check(callback: types.CallbackQuery, state: FSMContext):
-    await state.set_state(StarsPaymentState.waiting_for_screenshot)
-    await callback.message.answer("📸 Отправьте скриншот чека в чат")
-    await callback.answer()
-
-@dp.message(StarsPaymentState.waiting_for_screenshot, F.photo)
-async def stars_handle_screenshot(message: types.Message, state: FSMContext):
-    data = await state.get_data()
-    product_name = data.get("selected_product", "товар")
-    price = data.get("current_price", 0)
-    username = message.from_user.username or message.from_user.first_name
-    user_id = message.from_user.id
-    
-    caption = f"""⭐️ НОВАЯ ЗАЯВКА STARS
-
-👤 @{username}
-🆔 {user_id}
-📦 {product_name}
-💰 {price} RUB"""
-    
-    await bot.send_photo(ADMIN_ID, photo=message.photo[-1].file_id, caption=caption)
-    await message.answer("✅ Скриншот получен! Администратор проверит оплату.")
-    await state.clear()
-
-@dp.message(StarsPaymentState.waiting_for_screenshot)
-async def stars_invalid_screenshot(message: types.Message):
-    await message.answer("❌ Отправьте фото скриншота")
-
-# ========== ПРОМОКОДЫ ==========
-@dp.callback_query(F.data == "enter_promo")
-async def enter_promo(callback: types.CallbackQuery, state: FSMContext):
-    await callback.message.edit_text(
-        "🎁 Введите промокод:",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_products")]
-        ])
+    text = (
+        f"📋 <b>{tariff['name']}</b>\n"
+        f"Срок доступа: {tariff['duration']}\n"
+        f"💰 Цена: {tariff['price_rub']} RUB\n\n"
+        f"🔒 Будет получен доступ к:\n"
+        f"• {PROJECT_NAME} (внешняя ссылка)\n\n"
+        f"Выберите валюту для оплаты тарифа"
     )
-    await state.set_state(PromoState.waiting_for_promo)
-    await callback.answer()
+    await callback.message.edit_text(text, reply_markup=get_payment_method_keyboard(tariff_key))
 
-@dp.message(PromoState.waiting_for_promo)
-async def get_promo(message: types.Message, state: FSMContext):
-    promo_code = message.text.lower().strip()
-    user_id = message.from_user.id
-    data = await state.get_data()
-    original_price = data.get("original_price", 0)
-    selected_product = data.get("selected_product", "товар")
+@dp.callback_query(F.data.startswith("pay_rub_"))
+async def process_rub_payment(callback: CallbackQuery):
+    tariff_key = callback.data.replace("pay_rub_", "")
+    tariff = TARIFFS[tariff_key]
     
-    if promo_code in PROMOCODES:
-        discount = PROMOCODES[promo_code]
-        new_price = int(original_price * (100 - discount) / 100)
-        
-        # Сохраняем скидку для пользователя
-        user_discounts[user_id] = discount
-        
-        # Обновляем текущие данные
-        await state.update_data(current_price=new_price)
-        await state.update_data(discount=discount)
-        
-        # Конвертация в звезды
-        stars_amount = int(new_price / 1.79)
-        
-        await message.answer(
-            f"🎯 Промокод {promo_code.upper()} активирован!\n"
-            f"💰 Скидка: {discount}%\n\n"
-            f"📦 Товар: {selected_product}\n"
-            f"💵 Было: {original_price} ₽\n"
-            f"🆕 Стало: {new_price} ₽ / {stars_amount} Stars\n\n"
-            f"✅ Нажмите «🛒 Товары» и выберите товар снова",
-            reply_markup=main_keyboard
-        )
-    else:
-        await message.answer(
-            f"❌ Неверный промокод!",
-            reply_markup=main_keyboard
-        )
+    demo_payment_url = f"https://trk.tweetly.pro/pay/demo_rub_{tariff_key}"
     
-    await state.clear()
+    text = (
+        f"📋 <b>{tariff['name']}</b>\n"
+        f"Срок доступа: {tariff['duration']}\n"
+        f"💰 Цена: {tariff['price_rub']} RUB\n"
+        f"💳 Способ оплаты: RollyPay\n\n"
+        f"💰 Итоговая стоимость: {tariff['price_rub']} RUB\n\n"
+        f"🔒 Будет получен доступ к:\n"
+        f"• {PROJECT_NAME} (внешняя ссылка)\n\n"
+        f"✅ Счет на оплату сформирован! Сразу же после оплаты здесь появятся ссылки с доступами"
+    )
+    await callback.message.edit_text(text, reply_markup=get_payment_action_keyboard(demo_payment_url, tariff_key))
 
-@dp.callback_query(F.data == "payment_done")
-async def payment_done(callback: types.CallbackQuery):
-    await callback.message.edit_text("✅ Отправьте скриншот чека в этот чат")
+@dp.callback_query(F.data.startswith("pay_stars_"))
+async def process_stars_payment(callback: CallbackQuery):
+    tariff_key = callback.data.replace("pay_stars_", "")
+    tariff = TARIFFS[tariff_key]
+    
+    demo_stars_url = f"https://t.me/TweetlyStarsBot?start=demo_stars_{tariff_key}"
+    
+    text = (
+        f"📋 <b>{tariff['name']}</b>\n"
+        f"Срок доступа: {tariff['duration']}\n"
+        f"💰 Цена: {tariff['price_stars']} STARS\n"
+        f"💳 Способ оплаты: ЗА ЗВЕЗДЫ ⭐\n\n"
+        f"💰 Итоговая стоимость: {tariff['price_stars']} STARS\n\n"
+        f"ℹ️ <b>Информация по оплате</b>\n"
+        f"Подарить звезды или подарки на этот аккаунт - <a href=\"{SUPPORT_CONTACT}\">@eshkereqe</a>\n\n"
+        f"курс:\n"
+        f"1 ⭐ - 1 рубль\n\n"
+        f"Отправьте скриншот или файл подтверждения оплаты - он будет передан продавцу.\n\n"
+        f"⚠️ <b>Внимание:</b> на квитанции должны быть четко видны: дата, время и сумма платежа!\n"
+        f"За поддельные скриншоты продавец вас может заблокировать!"
+    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⭐ Stars со скидкой до 42%", url=demo_stars_url)],
+        [InlineKeyboardButton(text="💰 Я оплатил", callback_data=f"check_payment_{tariff_key}")],
+        [InlineKeyboardButton(text="◀️ Назад", callback_data=f"choose_pay_{tariff_key}")]
+    ])
+    await callback.message.edit_text(text, reply_markup=kb)
 
-@dp.message(F.photo | F.document)
-async def handle_screenshot(message: types.Message):
-    await message.answer("📸 Скриншот получен! Администратор проверит оплату.")
-    await send_to_admin(f"📸 Чек от @{message.from_user.username}\nID: {message.from_user.id}")
+@dp.callback_query(F.data.startswith("check_payment_"))
+async def check_payment(callback: CallbackQuery):
+    await callback.answer("⏳ Проверка оплаты... (Демо-режим)", show_alert=True)
+    await callback.message.answer("✅ Оплата успешно найдена! В реальном режиме здесь появится ссылка на доступ.\n\nПоддержка: @eshkereqe")
 
-# ========== ЗАПУСК ==========
+# --- ЗАПУСК ---
 async def main():
-    print("🤖 Бот запущен!")
-    asyncio.create_task(start_web_server())
-    await bot.delete_webhook(drop_pending_updates=True)
+    logging.basicConfig(level=logging.INFO)
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
