@@ -13,7 +13,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiohttp import web
 
 # --- КОНФИГУРАЦИЯ ---
-BOT_TOKEN = "YOUR_BOT_TOKEN_HERE"  # ВСТАВЬ СВОЙ ТОКЕН
+BOT_TOKEN = "8298399133:AAFl5uIYOCCXIh6TM6Dn0AonL-Lyq39Wa3s"  # ВСТАВЬ СВОЙ ТОКЕН
 PROJECT_NAME = "VIP"
 SUPPORT_CONTACT = "https://t.me/Nastia_sup"
 
