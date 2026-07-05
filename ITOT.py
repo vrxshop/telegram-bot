@@ -31,7 +31,7 @@ DOCS_EN = {
 LANG = {
     "ru": {
         "start_promo": "🎉 <b>Промокод {code} активирован! Скидка {discount}%!</b>",
-        "start_welcome": "👋 Привет, {name}!\n\n<a href=\"{offer}\">Пользовательское соглашение</a>\n<a href=\"{policy}\">Политика конфиденциальности</a>\n\nДанный бот создан на платформе @TweetlyRobot",
+        "start_welcome": "👋 Привет, {name}!\n\n<a href=\"{offer}\">Пользовательское соглашение</a>\n<a href=\"{policy}\">Политика конфиденциальности</a>",
         "prices_menu": "📋 <b>Прайс</b>\n\nВыберите тариф, чтобы узнать подробности и оформить покупку.",
         "subs_menu": "📋 <b>Ваши подписки</b>\n\nУ вас пока нет активных подписок.\nВыберите тариф, чтобы оформить доступ.",
         "tariff_desc": "📋 <b>{name}</b>\n\n{price_line}\n\n📝 <b>Описание тарифа:</b>\n{desc}\n\n🔒 <b>Будет получен доступ на срок {duration} к:</b>\n• {project} (внешняя ссылка)",
@@ -60,7 +60,7 @@ LANG = {
     },
     "en": {
         "start_promo": "🎉 <b>Promo code {code} activated! {discount}% discount!</b>",
-        "start_welcome": "👋 Hello, {name}!\n\n<a href=\"{offer}\">Terms of Service</a>\n<a href=\"{policy}\">Privacy Policy</a>\n\nThis bot was created on @TweetlyRobot platform",
+        "start_welcome": "👋 Hello, {name}!\n\n<a href=\"{offer}\">Terms of Service</a>\n<a href=\"{policy}\">Privacy Policy</a>",
         "prices_menu": "📋 <b>Prices</b>\n\nSelect a tariff to view details and make a purchase.",
         "subs_menu": "📋 <b>Your subscriptions</b>\n\nYou don't have any active subscriptions yet.\nSelect a tariff to get access.",
         "tariff_desc": "📋 <b>{name}</b>\n\n{price_line}\n\n📝 <b>Tariff description:</b>\n{desc}\n\n🔒 <b>You will get access for {duration} to:</b>\n• {project} (external link)",
@@ -220,7 +220,7 @@ async def cmd_start(message: Message, state: FSMContext):
     if promo_code_from_link and promo_code_from_link in PROMO_CODES:
         discount = PROMO_CODES[promo_code_from_link]
         await state.update_data(discount=discount)
-        text = f"👋 Привет, {user_name}!\n\n{LANG[lang]['start_promo'].format(code=promo_code_from_link, discount=discount)}\n\n<a href=\"{DOCS_RU['offer']}\">Пользовательское соглашение</a>\n<a href=\"{DOCS_RU['policy']}\">Политика конфиденциальности</a>\n\nДанный бот создан на платформе @TweetlyRobot"
+        text = f"👋 Привет, {user_name}!\n\n{LANG[lang]['start_promo'].format(code=promo_code_from_link, discount=discount)}\n\n<a href=\"{DOCS_RU['offer']}\">Пользовательское соглашение</a>\n<a href=\"{DOCS_RU['policy']}\">Политика конфиденциальности</a>"
         await message.answer(text, disable_web_page_preview=True)
     else:
         docs = DOCS_RU if lang == "ru" else DOCS_EN
