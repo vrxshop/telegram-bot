@@ -13,7 +13,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiohttp import web
 
 # --- КОНФИГУРАЦИЯ ---
-BOT_TOKEN = "8298399133:AAFl5uIYOCCXIh6TM6Dn0AonL-Lyq39Wa3s"  # ВСТАВЬ СВОЙ ТОКЕН
+BOT_TOKEN = "YOUR_BOT_TOKEN_HERE"  # ВСТАВЬ СВОЙ ТОКЕН
 PROJECT_NAME = "VIP"
 SUPPORT_CONTACT = "https://t.me/Nastia_sup"
 
@@ -22,19 +22,19 @@ DOCS = {
     "policy": "https://telegra.ph/Politika-konfidicialnosti-07-01"
 }
 
-# --- СИСТЕМА ПРОМОКОДОВ (ТОЛЬКО ЭТИ РАБОТАЮТ) ---
+# --- СИСТЕМА ПРОМОКОДОВ (Только эти работают) ---
 PROMO_CODES = {
     "10": 10,
     "25": 25,
     "40": 40,
     "50": 50,
-    "VIP10": 10,   # Добавил для теста, чтобы было красиво
+    "VIP10": 10,
     "SUPER25": 25,
     "HOMAKE40": 40,
     "BANK50": 50
 }
 
-# Настройка тарифов
+# --- ТАРИФЫ ---
 TARIFFS = {
     "month": {
         "name": "VIP на месяц 🚀",
@@ -72,7 +72,6 @@ session = AiohttpSession()
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML), session=session)
 dp = Dispatcher(storage=storage)
 
-# --- МАШИНА СОСТОЯНИЙ ---
 class PromoStates(StatesGroup):
     waiting_for_promo = State()
 
@@ -98,17 +97,17 @@ def get_payment_method_keyboard(tariff_key, discount_percent=0):
         btn_rub = f"{rub_price} RUB"
         btn_stars = f"{stars_price} STARS"
 
-    kb = InlineKeyboardMarkup(inline_keyboard=[
+    return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=btn_rub, callback_data=f"pay_rub_{tariff_key}")],
         [InlineKeyboardButton(text=btn_stars, callback_data=f"pay_stars_{tariff_key}")],
         [InlineKeyboardButton(text="◀️ Назад", callback_data="back_to_prices")]
     ])
-    return kb
 
+# ⚠️ УБРАЛ КНОПКУ "Я ОПЛАТИЛ". ТЕПЕРЬ КАК НА ТВОЕМ СКРИНЕ:
 def get_payment_action_keyboard(payment_url, tariff_key):
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="💳 Перейти к оплате", url=payment_url)],
-        [InlineKeyboardButton(text="💰 Я оплатил", callback_data=f"check_payment_{tariff_key}")],
+        [InlineKeyboardButton(text="🔗 Получить новую ссылку", callback_data=f"refresh_link_{tariff_key}")],
         [InlineKeyboardButton(text="◀️ Назад", callback_data="back_to_prices")]
     ])
 
@@ -121,11 +120,9 @@ def go_to_prices_keyboard():
 async def cmd_start(message: Message, state: FSMContext):
     args = message.text.split()
     promo_code_from_link = None
-    
     if len(args) > 1:
         promo_code_from_link = args[1].strip()
     
-    # ✅ БЕЗОПАСНАЯ ПРОВЕРКА: скидка дается ТОЛЬКО если код есть в словаре
     if promo_code_from_link and promo_code_from_link in PROMO_CODES:
         discount = PROMO_CODES[promo_code_from_link]
         await state.update_data(discount=discount)
@@ -134,14 +131,18 @@ async def cmd_start(message: Message, state: FSMContext):
                 f"<a href=\"{DOCS['offer']}\">Пользовательское соглашение</a>\n"
                 f"<a href=\"{DOCS['policy']}\">Политика конфиденциальности</a>\n\n"
                 f"Данный бот создан на платформе @TweetlyRobot")
-        await message.answer(text, reply_markup=get_main_keyboard(), disable_web_page_preview=True)
+        await message.answer(text, disable_web_page_preview=True)
     else:
-        # Если код не найден или его нет — скидка НЕ дается и НЕ пишется про скидку
         text = (f"👋 Привет, {message.from_user.first_name}!\n\n"
                 f"<a href=\"{DOCS['offer']}\">Пользовательское соглашение</a>\n"
                 f"<a href=\"{DOCS['policy']}\">Политика конфиденциальности</a>\n\n"
                 f"Данный бот создан на платформе @TweetlyRobot")
-        await message.answer(text, reply_markup=get_main_keyboard(), disable_web_page_preview=True)
+        await message.answer(text, disable_web_page_preview=True)
+
+    await message.answer(
+        "📋 <b>Прайс</b>\n\nВыберите тариф, чтобы узнать подробности и оформить покупку.",
+        reply_markup=get_tariff_keyboard()
+    )
 
 @dp.message(F.text == "🛍️ Прайс")
 async def show_prices(message: Message):
@@ -160,7 +161,6 @@ async def back_to_prices(callback: CallbackQuery):
 async def show_tariff_details(callback: CallbackQuery, state: FSMContext):
     tariff_key = callback.data.replace("tariff_", "")
     tariff = TARIFFS[tariff_key]
-    
     data = await state.get_data()
     discount = data.get("discount", 0)
     
@@ -171,20 +171,19 @@ async def show_tariff_details(callback: CallbackQuery, state: FSMContext):
         price_line = f"💰 Цена: {tariff['price_rub']} RUB"
         
     text = f"📋 <b>{tariff['name']}</b>\n\n{price_line}\n\n📝 <b>Описание тарифа:</b>\n{tariff['description']}\n\n🔒 <b>Будет получен доступ на срок {tariff['duration']} к:</b>\n• {PROJECT_NAME} (внешняя ссылка)"
+    
     await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🏷️ Ввести промокод", callback_data=f"enter_promo_{tariff_key}")],
         [InlineKeyboardButton(text="💳 Способы оплаты", callback_data=f"choose_pay_{tariff_key}")],
         [InlineKeyboardButton(text="◀️ Назад", callback_data="back_to_prices")]
     ]))
 
-# --- ЛОГИКА ПРОМОКОДОВ ---
 @dp.callback_query(F.data.startswith("enter_promo_"))
 async def enter_promo(callback: CallbackQuery, state: FSMContext):
     tariff_key = callback.data.replace("enter_promo_", "")
     await state.update_data(current_tariff=tariff_key)
     await callback.message.edit_text(
-        "🏷️ <b>Введите код промокода</b>\n\n"
-        "Напишите промокод в чат.",
+        "🏷️ <b>Введите код промокода</b>\n\nНапишите промокод в чат.",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀️ Отмена", callback_data=f"cancel_promo_{tariff_key}")]])
     )
     await state.set_state(PromoStates.waiting_for_promo)
@@ -238,7 +237,6 @@ async def process_promo(message: Message, state: FSMContext):
     else:
         await message.answer("❌ Промокод не найден. Попробуйте еще раз (или нажмите ◀️ Отмена).")
 
-# --- ЛОГИКА ОПЛАТЫ ---
 @dp.callback_query(F.data.startswith("choose_pay_"))
 async def choose_payment(callback: CallbackQuery, state: FSMContext):
     tariff_key = callback.data.replace("choose_pay_", "")
@@ -296,15 +294,18 @@ async def process_stars_payment(callback: CallbackQuery, state: FSMContext):
     
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="⭐ Stars со скидкой до 42%", url=demo_stars_url)],
-        [InlineKeyboardButton(text="💰 Я оплатил", callback_data=f"check_payment_{tariff_key}")],
         [InlineKeyboardButton(text="◀️ Назад", callback_data=f"choose_pay_{tariff_key}")]
     ])
     await callback.message.edit_text(text, reply_markup=kb)
 
-@dp.callback_query(F.data.startswith("check_payment_"))
-async def check_payment(callback: CallbackQuery):
-    await callback.answer("⏳ Проверка оплаты... (Демо-режим)", show_alert=True)
-    await callback.message.answer("✅ Оплата успешно найдена! В реальном режиме здесь появится ссылка на доступ.\n\nПоддержка: @Nastia_sup")
+@dp.callback_query(F.data.startswith("refresh_link_"))
+async def refresh_link(callback: CallbackQuery):
+    await callback.answer("🔄 Генерирую новую ссылку...", show_alert=False)
+    # В демо-режиме просто обновляем сообщение той же ссылкой
+    await callback.message.edit_text(
+        callback.message.text + "\n\n♻️ <i>Ссылка обновлена!</i>",
+        reply_markup=callback.message.reply_markup
+    )
 
 # --- ФУНКЦИЯ ДЛЯ UPTIMEROBOT ---
 async def handle_uptime_check(request):
@@ -329,7 +330,7 @@ async def main():
     except Exception:
         pass
     await start_web_server()
-    print("🤖 Бот запущен с безопасной системой промокодов!")
+    print("🤖 Бот полностью готов для менеджера!")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
