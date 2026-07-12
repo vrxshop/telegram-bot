@@ -1,6 +1,8 @@
 import logging
 import asyncio
 import os
+import json
+import aiohttp
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton, BotCommand
 from aiogram.filters import CommandStart, Command
@@ -12,8 +14,12 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiohttp import web
 
-# --- КОНФИГУРАЦИЯ ---
-BOT_TOKEN = "8298399133:AAFl5uIYOCCXIh6TM6Dn0AonL-Lyq39Wa3s"  # ВСТАВЬ СВОЙ ТОКЕН
+# --- КОНФИГУРАЦИЯ RollyPay ---
+ROLLYPAY_API_KEY = "z39_r_COJdiB7PWeddOYvzT2rx4cjIbS1m4JJcgBTi0"  # Вставь сюда свой API-ключ
+ROLLYPAY_CALLBACK_URL = "https://t-bot-18jz.onrender.com/webhook"  # Твой обработчик на Render
+
+# --- КОНФИГУРАЦИЯ БОТА ---
+BOT_TOKEN = "8298399133:AAFl5uIYOCCXIh6TM6Dn0AonL-Lyq39Wa3s"
 PROJECT_NAME = "VIP"
 SUPPORT_CONTACT_RU = "https://t.me/Nastia_sup"
 SUPPORT_CONTACT_EN = "https://t.me/Nastia_sup"
@@ -27,7 +33,7 @@ DOCS_EN = {
     "policy": "https://telegra.ph/Politika-konfidicialnosti-07-01"
 }
 
-# --- ТЕКСТЫ НА ДВУХ ЯЗЫКАХ ---
+# --- ТЕКСТЫ И ТАРИФЫ (оставляем как у тебя) ---
 LANG = {
     "ru": {
         "start_promo": "🎉 <b>Промокод {code} активирован! Скидка {discount}%!</b>",
@@ -89,7 +95,6 @@ LANG = {
     }
 }
 
-# --- ТАРИФЫ ---
 TARIFFS = {
     "month": {
         "name_ru": "VIP на месяц 🚀",
@@ -133,7 +138,6 @@ TARIFFS = {
     }
 }
 
-# --- ПРОМОКОДЫ ---
 PROMO_CODES = {
     "10": 10, "25": 25, "40": 40, "50": 50,
     "VIP10": 10, "SUPER25": 25, "HOMAKE40": 40, "BANK50": 50
@@ -147,6 +151,37 @@ dp = Dispatcher(storage=storage)
 
 class PromoStates(StatesGroup):
     waiting_for_promo = State()
+
+# --- ФУНКЦИЯ ДЛЯ RollyPay ---
+async def create_rollypay_payment(amount: int, user_id: int, tariff_key: str, tariff_name: str) -> str:
+    """Создает платеж в RollyPay и возвращает ссылку на оплату."""
+    url = "https://api.rollypay.io/v1/payments"
+    headers = {
+        "X-API-Key": ROLLYPAY_API_KEY,
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "amount": amount,
+        "currency": "RUB",
+        "description": f"Оплата тарифа {tariff_name} для пользователя {user_id}",
+        "callback_url": ROLLYPAY_CALLBACK_URL,
+        "success_url": "https://t.me/blogprivatbot",
+        "fail_url": "https://t.me/blogprivatbot",
+        "metadata": {
+            "user_id": user_id,
+            "tariff": tariff_key
+        }
+    }
+    
+    async with aiohttp.ClientSession() as client:
+        async with client.post(url, headers=headers, json=payload) as response:
+            if response.status == 200:
+                data = await response.json()
+                return data.get("pay_url")
+            else:
+                error_text = await response.text()
+                logging.error(f"Ошибка RollyPay: {response.status} - {error_text}")
+                return None
 
 # --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
 async def get_lang(state: FSMContext):
@@ -388,19 +423,26 @@ async def process_rub_payment(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     discount = data.get("discount", 0)
     tariff = TARIFFS[tariff_key]
-    name = tariff['name_ru'] if lang == "ru" else tariff['name_en']
-    duration = tariff['duration_ru'] if lang == "ru" else tariff['duration_en']
     
     final_price = int(tariff['price_rub'] * (1 - discount / 100))
-    demo_payment_url = f"https://trk.tweetly.pro/pay/demo_rub_{tariff_key}"
+    user_id = callback.from_user.id
     
-    if discount > 0:
-        price_line = f"💰 Цена: <s>{tariff['price_rub']} RUB</s> → {final_price} RUB (-{discount}%)\n"
-    else:
-        price_line = f"💰 Цена: {final_price} RUB\n"
+    # Получаем ссылку на оплату от RollyPay
+    payment_url = await create_rollypay_payment(final_price, user_id, tariff_key, tariff['name_ru'])
+    
+    if payment_url:
+        name = tariff['name_ru'] if lang == "ru" else tariff['name_en']
+        duration = tariff['duration_ru'] if lang == "ru" else tariff['duration_en']
         
-    text = LANG[lang]["pay_rub"].format(name=name, duration=duration, price_line=price_line, final=final_price, project=PROJECT_NAME)
-    await callback.message.edit_text(text, reply_markup=get_payment_action_keyboard(demo_payment_url, tariff_key, lang))
+        if discount > 0:
+            price_line = f"💰 Цена: <s>{tariff['price_rub']} RUB</s> → {final_price} RUB (-{discount}%)\n"
+        else:
+            price_line = f"💰 Цена: {final_price} RUB\n"
+            
+        text = LANG[lang]["pay_rub"].format(name=name, duration=duration, price_line=price_line, final=final_price, project=PROJECT_NAME)
+        await callback.message.edit_text(text, reply_markup=get_payment_action_keyboard(payment_url, tariff_key, lang))
+    else:
+        await callback.answer("❌ Ошибка создания платежа. Попробуйте позже или выберите другой способ оплаты.", show_alert=True)
 
 @dp.callback_query(F.data.startswith("pay_stars_"))
 async def process_stars_payment(callback: CallbackQuery, state: FSMContext):
@@ -461,9 +503,7 @@ async def main():
     except Exception:
         pass
     
-    # Устанавливаем меню команд (/start, /language)
     await set_bot_commands()
-    
     await start_web_server()
     print("🤖 Бот полностью готов (2 языка + меню команд)!")
     await dp.start_polling(bot)
