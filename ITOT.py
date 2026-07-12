@@ -140,7 +140,6 @@ TARIFFS = {
 }
 
 PROMO_CODES = {
-    "10": 10, "25": 25, "40": 40, "50": 50,
     "VIP10": 10, "SUPER25": 25, "HOMAKE40": 40, "BANK50": 50
 }
 
@@ -163,14 +162,15 @@ async def create_rollypay_payment(amount: int, user_id: int, tariff_key: str, ta
         "X-Nonce": str(uuid.uuid4())  # <-- добавили уникальный заголовок
     }
     payload = {
-        "amount": str(amount),  # <-- сумма должна быть строкой, а не числом
-        "payment_currency": "RUB",  # <-- заменили currency на payment_currency
-        "order_id": f"order_{user_id}_{tariff_key}_{int(asyncio.get_event_loop().time())}",  # уникальный ID заказа
-        "description": f"Оплата тарифа {tariff_name} для пользователя {user_id}",
-        "callback_url": ROLLYPAY_CALLBACK_URL,
-        "success_url": "https://t.me/blogprivatbot",
-        "fail_url": "https://t.me/blogprivatbot"
-    }
+    "amount": str(amount),  # 349 — это цена для клиента
+    "payment_currency": "RUB",
+    "order_id": f"order_{user_id}_{tariff_key}_{int(asyncio.get_event_loop().time())}",
+    "description": f"Оплата тарифа {tariff_name} для пользователя {user_id}",
+    "callback_url": ROLLYPAY_CALLBACK_URL,
+    "success_url": "https://t.me/blogprivatbot",
+    "fail_url": "https://t.me/blogprivatbot",
+    "merchant_fee": "true"  # <-- ЭТА СТРОКА ГОВОРИТ, ЧТО КОМИССИЯ ЗА ТВОЙ СЧЁТ
+}
     
     async with aiohttp.ClientSession() as client:
         async with client.post(url, headers=headers, json=payload) as response:
