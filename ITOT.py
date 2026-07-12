@@ -165,7 +165,7 @@ async def create_rollypay_payment(amount: int, user_id: int, tariff_key: str, ta
     "amount": str(amount),  # 349 — это цена для клиента
     "payment_currency": "RUB",
     "order_id": f"order_{user_id}_{tariff_key}_{int(asyncio.get_event_loop().time())}",
-    "description": f"Оплата тарифа {tariff_name} для пользователя {user_id}",
+    "description": "Оплата доступа к контенту",
     "callback_url": ROLLYPAY_CALLBACK_URL,
     "success_url": "https://t.me/blogprivatbot",
     "fail_url": "https://t.me/blogprivatbot",
