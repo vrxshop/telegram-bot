@@ -473,12 +473,26 @@ async def process_stars_payment(callback: CallbackQuery, state: FSMContext):
 
 @dp.callback_query(F.data.startswith("refresh_link_"))
 async def refresh_link(callback: CallbackQuery, state: FSMContext):
-    lang = await get_lang(state)
-    await callback.answer("🔄 Генерирую новую ссылку...", show_alert=False)
-    await callback.message.edit_text(
-        callback.message.text + "\n\n" + LANG[lang]["refresh_link"],
-        reply_markup=callback.message.reply_markup
-    )
+    tariff_key = callback.data.replace("refresh_link_", "")
+    tariff = TARIFFS[tariff_key]
+    user_id = callback.from_user.id
+    final_price = tariff['price_rub']  # или с учётом скидки
+
+    # Создаём новый платёж
+    payment_url = await create_rollypay_payment(final_price, user_id, tariff_key, tariff['name_ru'])
+
+    if payment_url:
+        # Обновляем кнопку с новой ссылкой
+        await callback.message.edit_reply_markup(
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="💳 Перейти к оплате", url=payment_url)],
+                [InlineKeyboardButton(text="🔗 Получить новую ссылку", callback_data=f"refresh_link_{tariff_key}")],
+                [InlineKeyboardButton(text="◀️ Назад", callback_data="back_to_prices")]
+            ])
+        )
+        await callback.answer("✅ Новая ссылка сгенерирована!", show_alert=True)
+    else:
+        await callback.answer("❌ Ошибка создания новой ссылки. Попробуйте позже.", show_alert=True)
 
 # --- ФУНКЦИЯ ДЛЯ UPTIMEROBOT ---
 async def handle_uptime_check(request):
