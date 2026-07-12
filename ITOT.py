@@ -16,8 +16,8 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiohttp import web
 
 # --- КОНФИГУРАЦИЯ RollyPay ---
-ROLLYPAY_API_KEY = "z39_r_COJdiB7PWeddOYvzT2rx4cjIbS1m4JJcgBTi0"  # Вставь сюда свой API-ключ
-ROLLYPAY_CALLBACK_URL = "https://t-bot-18jz.onrender.com/webhook"  # Твой обработчик на Render
+ROLLYPAY_API_KEY = "z39_r_COJdiB7PWeddOYvzT2rx4cjIbS1m4JJcgBTi0"
+ROLLYPAY_CALLBACK_URL = "https://t-bot-18jz.onrender.com/webhook"
 
 # --- КОНФИГУРАЦИЯ БОТА ---
 BOT_TOKEN = "8298399133:AAFl5uIYOCCXIh6TM6Dn0AonL-Lyq39Wa3s"
@@ -34,7 +34,7 @@ DOCS_EN = {
     "policy": "https://telegra.ph/Politika-konfidicialnosti-07-01"
 }
 
-# --- ТЕКСТЫ И ТАРИФЫ (оставляем как у тебя) ---
+# --- ТЕКСТЫ И ТАРИФЫ ---
 LANG = {
     "ru": {
         "start_promo": "🎉 <b>Промокод {code} активирован! Скидка {discount}%!</b>",
@@ -96,46 +96,106 @@ LANG = {
     }
 }
 
+# ТАРИФЫ (цены только в кнопках, в названиях цены убраны)
 TARIFFS = {
-    "month": {
-        "name_ru": "VIP на месяц 🚀",
-        "name_en": "VIP for a month 🚀",
+    "celebrity": {
+        "name_ru": "Слив знаменитостей",
+        "name_en": "Celebrity Leaks",
         "price_rub": 349,
         "price_stars": 300,
-        "duration_ru": "1 мес.",
+        "duration_ru": "1 месяц",
         "duration_en": "1 month",
-        "desc_ru": "Доступ к приватке на месяц! 🦄\n\nИнст Рина\nДаша Дошик\nЛиза Анохина\nXdhka\nВаля Карнавал\nДаша Дошик\nИнстасамка\nСвета Соллар\nИ множество других блогерш\n\nДипфейков нет, только реальные сливы и засветы от блогерш ❤️",
-        "desc_en": "Access to private for a month! 🦄\n\nInst Rina\nDasha Doshik\nLisa Anokhina\nXdhka\nValya Karnaval\nDasha Doshik\nInstasamka\nSveta Sollar\nAnd many other bloggers\n\nNo deepfakes, only real leaks and exposures from bloggers ❤️"
+        "desc_ru": "Слив знаменитостей\n\nИнст Рина\nДаша Дошик\nЛиза Анохина\nXdhka\nВаля Карнавал\nДаша Дошик\nИнстасамка\nСвета Соллар\nИ множество других блогерш\n\nДипфейков нет, только реальные сливы и засветы от блогерш ❤️"
     },
-    "forever": {
-        "name_ru": "VIP навсегда 👑",
-        "name_en": "VIP forever 👑",
+    "shkur": {
+        "name_ru": "Сливы шкур",
+        "name_en": "Skin Leaks",
+        "price_rub": 349,
+        "price_stars": 300,
+        "duration_ru": "1 месяц",
+        "duration_en": "1 month",
+        "desc_ru": "После покупки вы попадете в приватный канал со сливом девушек\n\nЧто в канале? Порно девок 13-19, а так-же слив и их разводом на фото, видео и \"беседы\" в скайпе, иногда ссылками на соц сети и Некоторых особых шкур есть номера и страницы вк\n\nУровень? В основном 14-20, но встречаются и до 14 Возраст\n\nПомимо канала прилагается еще немного архивов с шкурками"
+    },
+    "mini_det": {
+        "name_ru": "Mini Детск. До 12",
+        "name_en": "Mini Child. Up to 12",
         "price_rub": 499,
         "price_stars": 450,
-        "duration_ru": "Навсегда",
-        "duration_en": "Forever",
-        "desc_ru": "Доступ к приватке навсегда! 🦄\n\nИнст Рина\nДаша Дошик\nЛиза Анохина\nXdhka\nВаля Карнавал\nДаша Дошик\nИнстасамка\nСвета Соллар\nИ множество других блогерш\n\nДипфейков нет, только реальные сливы и засветы от блогерш ❤️",
-        "desc_en": "Access to private forever! 🦄\n\nInst Rina\nDasha Doshik\nLisa Anokhina\nXdhka\nValya Karnaval\nDasha Doshik\nInstasamka\nSveta Sollar\nAnd many other bloggers\n\nNo deepfakes, only real leaks and exposures from bloggers ❤️"
+        "duration_ru": "1 месяц",
+        "duration_en": "1 month",
+        "desc_ru": "Это мини пак с огромным количеством небольших видео\n\nПосле покупки вы попадете в приватный канал с детским порно довольно таки жестким\n\nУровень? 11-12 возраст, секс, изнасилование, инцест, ласкает себя и т.д.\n\nПомимо видео прилагается еще архивы с множеством гб"
     },
-    "leaks": {
-        "name_ru": "СЛИВЫ АЛЬТУШЕК 🦄",
-        "name_en": "ALT GIRLS LEAKS 🦄",
+    "shkodnitsy": {
+        "name_ru": "ШкоДнищь (13-17 Лет)",
+        "name_en": "Schoolgirls (13-17 Years)",
+        "price_rub": 799,
+        "price_stars": 700,
+        "duration_ru": "1 месяц",
+        "duration_en": "1 month",
+        "desc_ru": "После покупки вы попадете в приватный канал с цельным процессом порно\n\nБольшой сборник из мега подборки порно ваших любимых школьниц возрастом от 12 до 17, есть износа, инцест, много сливов с вписок и просто слив шкур, скрытые камеры школьниц/студенток и сексом, ласкает себя и т.д.\n\nПомимо видео прилагается еще архивы с множеством гб этой категории.\n\nКонтента очень много"
+    },
+    "premium_det": {
+        "name_ru": "Premium Детск. До 12",
+        "name_en": "Premium Child. Up to 12",
+        "price_rub": 899,
+        "price_stars": 800,
+        "duration_ru": "1 месяц",
+        "duration_en": "1 month",
+        "desc_ru": "После покупки вы попадете в приватный канал с детским порно довольно таки жестким\n\nУровень? 11-12 возраст, секс, износа, инцест, ласкает себя и т.д.\n\nПомимо видео прилагается еще архивы с множеством гб\n\nКонтента очень много"
+    },
+    "zoo": {
+        "name_ru": "Канал Зоо",
+        "name_en": "Zoo Channel",
+        "price_rub": 239,
+        "price_stars": 200,
+        "duration_ru": "2 месяца",
+        "duration_en": "2 months",
+        "desc_ru": "Канал с зоо контентом"
+    },
+    "gay": {
+        "name_ru": "Геи",
+        "name_en": "Gay",
         "price_rub": 299,
-        "price_stars": 270,
-        "duration_ru": "Навсегда",
-        "duration_en": "Forever",
-        "desc_ru": "Сливы альтушек 🦄\n\nБольше тысячи видосов, домашки альтушек, онлики и так далее 🔥\n\nДОСТУП ДАЕТСЯ НАВСЕГДА!!!",
-        "desc_en": "Alt girls leaks 🦄\n\nOver a thousand videos, alt girl homework, onlyfans and more 🔥\n\nACCESS IS GIVEN FOREVER!!!"
+        "price_stars": 250,
+        "duration_ru": "1 месяц",
+        "duration_en": "1 month",
+        "desc_ru": "Вы получите доступ к следующим ресурсам:\n- Gg (канал)\n\nУровень? Есть до 12, но в основном видео 12-17, есть немного износа, инцест, скрытые камеры школьников/студентов и конечно основное же секс и минет\n\nПомимо видео прилагается еще дополнительный архив."
     },
-    "all_at_once": {
-        "name_ru": "ВСЕ СРАЗУ 🔥",
-        "name_en": "ALL AT ONCE 🔥",
+    "zakladchitsy": {
+        "name_ru": "Закладчицы",
+        "name_en": "Stashers",
+        "price_rub": 499,
+        "price_stars": 450,
+        "duration_ru": "1 месяц",
+        "duration_en": "1 month",
+        "desc_ru": "Что тебя ждет в наших приватах\nЖесткие изнасилования Закладчиц\nОтсосы, ебля закладчиц в посадках\nПолные видео с закладчицами"
+    },
+    "pak_obnovlenie": {
+        "name_ru": "Пак - Обновление ссылок",
+        "name_en": "Pack - Link Update",
         "price_rub": 699,
-        "price_stars": 550,
-        "duration_ru": "Навсегда",
+        "price_stars": 600,
+        "duration_ru": "21 дней",
+        "duration_en": "21 days",
+        "desc_ru": "Сливаем ссылки других каналов, рекомендуем покупать после просмотра других тарифов\n\nЕдинственный пак который не входит во всё включено"
+    },
+    "vse_vklyucheno": {
+        "name_ru": "Всё включено 2026",
+        "name_en": "All inclusive 2026",
+        "price_rub": 3999,
+        "price_stars": 3500,
+        "duration_ru": "Бессрочно",
         "duration_en": "Forever",
-        "desc_ru": "Даю доступ навсегда во все приватки и во все следующие, которые будут добавляться\n\nСамый выгодный тариф!",
-        "desc_en": "Giving forever access to all private channels and all future ones that will be added\n\nThe most profitable tariff!"
+        "desc_ru": "Вы получите доступ сразу в 10 наших каналов при этом их подписка останется у вас НАВСЕГДА! А выйдет гораздо дешевле чем покупать по отдельности\n\nКонтента у вас выйдет очень МНОГО\n\n+ Бонусные каналы к тарифу"
+    },
+    "vpn": {
+        "name_ru": "Vpn 7 дней",
+        "name_en": "Vpn 7 days",
+        "price_rub": 10000,
+        "price_stars": 9000,
+        "duration_ru": "1 день",
+        "duration_en": "1 day",
+        "desc_ru": "Не покупать, читайте описание.\n\nХороший VPN для обхода белых списков.\n\nПереходим по ссылке:\nhttps://t.me/velvet_vpn_bot?start=AW3BJ7Iz\n\nВам дают 2 дня бесплатного доступа, а также вводим ещё 2 секретных промокода на 7 дней:\n\nWELCOME_BACK\nJUSTTRY"
     }
 }
 
@@ -154,23 +214,22 @@ class PromoStates(StatesGroup):
 
 # --- ФУНКЦИЯ ДЛЯ RollyPay ---
 async def create_rollypay_payment(amount: int, user_id: int, tariff_key: str, tariff_name: str) -> str:
-    """Создает платеж в RollyPay и возвращает ссылку на оплату."""
     url = "https://rollypay.io/api/v1/payments"
     headers = {
         "X-API-Key": ROLLYPAY_API_KEY,
         "Content-Type": "application/json",
-        "X-Nonce": str(uuid.uuid4())  # <-- добавили уникальный заголовок
+        "X-Nonce": str(uuid.uuid4())
     }
     payload = {
-    "amount": str(amount),  # 349 — это цена для клиента
-    "payment_currency": "RUB",
-    "order_id": f"order_{user_id}_{tariff_key}_{int(asyncio.get_event_loop().time())}",
-    "description": f"Оплата тарифа {tariff_name} для пользователя {user_id}",
-    "callback_url": ROLLYPAY_CALLBACK_URL,
-    "success_url": "https://t.me/blogprivatbot",
-    "fail_url": "https://t.me/blogprivatbot",
-    "merchant_fee": "true"  # <-- ЭТА СТРОКА ГОВОРИТ, ЧТО КОМИССИЯ ЗА ТВОЙ СЧЁТ
-}
+        "amount": str(amount),
+        "payment_currency": "RUB",
+        "order_id": f"order_{user_id}_{tariff_key}_{int(asyncio.get_event_loop().time())}",
+        "description": "Оплата доступа к контенту",
+        "callback_url": ROLLYPAY_CALLBACK_URL,
+        "success_url": "https://t.me/blogprivatbot",
+        "fail_url": "https://t.me/blogprivatbot",
+        "merchant_fee": "true"
+    }
     
     async with aiohttp.ClientSession() as client:
         async with client.post(url, headers=headers, json=payload) as response:
@@ -427,7 +486,6 @@ async def process_rub_payment(callback: CallbackQuery, state: FSMContext):
     final_price = int(tariff['price_rub'] * (1 - discount / 100))
     user_id = callback.from_user.id
     
-    # Получаем ссылку на оплату от RollyPay
     payment_url = await create_rollypay_payment(final_price, user_id, tariff_key, tariff['name_ru'])
     
     if payment_url:
@@ -476,13 +534,11 @@ async def refresh_link(callback: CallbackQuery, state: FSMContext):
     tariff_key = callback.data.replace("refresh_link_", "")
     tariff = TARIFFS[tariff_key]
     user_id = callback.from_user.id
-    final_price = tariff['price_rub']  # или с учётом скидки
+    final_price = tariff['price_rub']
 
-    # Создаём новый платёж
     payment_url = await create_rollypay_payment(final_price, user_id, tariff_key, tariff['name_ru'])
 
     if payment_url:
-        # Обновляем кнопку с новой ссылкой
         await callback.message.edit_reply_markup(
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="💳 Перейти к оплате", url=payment_url)],
