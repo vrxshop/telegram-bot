@@ -180,7 +180,8 @@ async def create_rollypay_payment(amount: int, user_id: int, tariff_key: str, ta
                 return data.get("pay_url")
             else:
                 error_text = await response.text()
-                logging.error(f"Ошибка RollyPay: {response.status} - {error_text}")
+logging.error(f"Ошибка RollyPay: {response.status} - {error_text}")
+print(f"Ошибка RollyPay: {response.status} - {error_text}")  # Это выведет текст в консоль
                 return None
 
 # --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
