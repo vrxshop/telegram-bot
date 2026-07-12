@@ -2,6 +2,7 @@ import logging
 import asyncio
 import os
 import json
+import uuid
 import aiohttp
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton, BotCommand
@@ -158,19 +159,17 @@ async def create_rollypay_payment(amount: int, user_id: int, tariff_key: str, ta
     url = "https://rollypay.io/api/v1/payments"
     headers = {
         "X-API-Key": ROLLYPAY_API_KEY,
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "X-Nonce": str(uuid.uuid4())  # <-- добавили уникальный заголовок
     }
     payload = {
-        "amount": amount,
-        "currency": "RUB",
+        "amount": str(amount),  # <-- сумма должна быть строкой, а не числом
+        "payment_currency": "RUB",  # <-- заменили currency на payment_currency
+        "order_id": f"order_{user_id}_{tariff_key}_{int(asyncio.get_event_loop().time())}",  # уникальный ID заказа
         "description": f"Оплата тарифа {tariff_name} для пользователя {user_id}",
         "callback_url": ROLLYPAY_CALLBACK_URL,
         "success_url": "https://t.me/blogprivatbot",
-        "fail_url": "https://t.me/blogprivatbot",
-        "metadata": {
-            "user_id": user_id,
-            "tariff": tariff_key
-        }
+        "fail_url": "https://t.me/blogprivatbot"
     }
     
     async with aiohttp.ClientSession() as client:
@@ -181,7 +180,7 @@ async def create_rollypay_payment(amount: int, user_id: int, tariff_key: str, ta
             else:
                 error_text = await response.text()
                 logging.error(f"Ошибка RollyPay: {response.status} - {error_text}")
-                print(f"Ошибка RollyPay: {response.status} - {error_text}")  # Это выведет текст в консоль
+                print(f"Ошибка RollyPay: {response.status} - {error_text}")
                 return None
 
 # --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
