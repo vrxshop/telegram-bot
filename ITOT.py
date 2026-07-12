@@ -155,7 +155,7 @@ class PromoStates(StatesGroup):
 # --- ФУНКЦИЯ ДЛЯ RollyPay ---
 async def create_rollypay_payment(amount: int, user_id: int, tariff_key: str, tariff_name: str) -> str:
     """Создает платеж в RollyPay и возвращает ссылку на оплату."""
-    url = "https://api.rollypay.io/v1/payments"
+    url = "https://rollypay.io/api/v1/payments"
     headers = {
         "X-API-Key": ROLLYPAY_API_KEY,
         "Content-Type": "application/json"
