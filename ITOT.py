@@ -29,10 +29,8 @@ SUPABASE_URL = "postgresql://postgres:5369fasF352@db.pyjpmckzoexfktjezjho.supaba
 engine = create_engine(
     SUPABASE_URL,
     echo=False,
-    pool_pre_ping=True,
-    connect_args={"statement_cache_size": 0}
+    pool_pre_ping=True
 )
-
 # ==================================================
 # ФУНКЦИИ ДЛЯ РАБОТЫ С SUPABASE
 # ==================================================
