@@ -24,7 +24,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 
-SUPABASE_URL = "postgresql://postgres:5369fasF352@db.pyjpmckzoexfktjezjho.supabase.co:5432/postgres"
+SUPABASE_URL = "postgresql://postgres.pyjpmckzoexfktjezjho:5369fasF352@aws-0-eu-west-1.pooler.supabase.com:6543/postgres"
 
 engine = create_engine(
     SUPABASE_URL,
