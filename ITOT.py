@@ -4,6 +4,10 @@ import os
 import json
 import uuid
 import aiohttp
+import sqlite3
+import threading
+from datetime import datetime, timedelta
+from flask import Flask
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton, BotCommand
 from aiogram.filters import CommandStart, Command
@@ -13,17 +17,122 @@ from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiohttp import web
 
-# --- КОНФИГУРАЦИЯ RollyPay ---
+# ==================================================
+# SUPABASE
+# ==================================================
+from sqlalchemy import create_engine, text
+from sqlalchemy.exc import SQLAlchemyError
+
+SUPABASE_URL = "postgresql://postgres:5369fasF352@db.pyjpmckzoexfktjezjho.supabase.co:5432/postgres"
+
+engine = create_engine(
+    SUPABASE_URL,
+    echo=False,
+    pool_pre_ping=True,
+    connect_args={"statement_cache_size": 0}
+)
+
+# ==================================================
+# ФУНКЦИИ ДЛЯ РАБОТЫ С SUPABASE
+# ==================================================
+
+def get_all_users():
+    """Получает всех пользователей из Supabase"""
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(text("SELECT user_id FROM users"))
+            return [row[0] for row in result]
+    except Exception as e:
+        logging.error(f"Ошибка получения пользователей: {e}")
+        return []
+
+def add_user(user_id: int, first_name: str, username: str = None):
+    """Добавляет пользователя в Supabase"""
+    try:
+        with engine.connect() as conn:
+            conn.execute(
+                text("""
+                    INSERT INTO users (user_id, first_name, username) 
+                    VALUES (:id, :name, :uname) 
+                    ON CONFLICT (user_id) DO NOTHING
+                """),
+                {"id": user_id, "name": first_name, "uname": username}
+            )
+            conn.commit()
+        return True
+    except Exception as e:
+        logging.error(f"Ошибка добавления пользователя: {e}")
+        return False
+
+def add_paid_tariff(user_id: int, tariff_key: str):
+    """Добавляет оплаченный тариф в Supabase"""
+    try:
+        with engine.connect() as conn:
+            conn.execute(
+                text("""
+                    INSERT INTO paid_tariffs (user_id, tariff_key) 
+                    VALUES (:id, :key) 
+                    ON CONFLICT (user_id, tariff_key) DO NOTHING
+                """),
+                {"id": user_id, "key": tariff_key}
+            )
+            conn.commit()
+        return True
+    except Exception as e:
+        logging.error(f"Ошибка добавления оплаты: {e}")
+        return False
+
+def get_paid_tariffs(user_id: int):
+    """Получает оплаченные тарифы пользователя из Supabase"""
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(
+                text("SELECT tariff_key FROM paid_tariffs WHERE user_id = :id"),
+                {"id": user_id}
+            )
+            return [row[0] for row in result]
+    except Exception as e:
+        logging.error(f"Ошибка получения оплаченных тарифов: {e}")
+        return []
+
+def is_tariff_paid(user_id: int, tariff_key: str):
+    """Проверяет, оплачен ли тариф"""
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(
+                text("SELECT 1 FROM paid_tariffs WHERE user_id = :id AND tariff_key = :key"),
+                {"id": user_id, "key": tariff_key}
+            )
+            return result.fetchone() is not None
+    except Exception as e:
+        logging.error(f"Ошибка проверки оплаты: {e}")
+        return False
+
+# ==================================================
+# FLASK ДЛЯ RENDER
+# ==================================================
+flask_app = Flask(__name__)
+
+@flask_app.route('/')
+def home():
+    return "🤖 Бот работает!"
+
+@flask_app.route('/health')
+def health():
+    return "OK", 200
+
+# ==================================================
+# КОНФИГУРАЦИЯ
+# ==================================================
 ROLLYPAY_API_KEY = "z39_r_COJdiB7PWeddOYvzT2rx4cjIbS1m4JJcgBTi0"
 ROLLYPAY_CALLBACK_URL = "https://t-bot-18jz.onrender.com/webhook"
 
-# --- КОНФИГУРАЦИЯ БОТА ---
-BOT_TOKEN = "8298399133:AAFl5uIYOCCXIh6TM6Dn0AonL-Lyq39Wa3s"
+BOT_TOKEN = "7753109639:AAF-S62nZ9IURwIsvt5_0jSUQb5bJVSAGqw"
 PROJECT_NAME = "VIP"
 SUPPORT_CONTACT_RU = "https://t.me/Nastia_sup"
 SUPPORT_CONTACT_EN = "https://t.me/Nastia_sup"
+ADMIN_IDS = [8370080332, 8559381302]  # ← СПИСОК АДМИНОВ
 
 DOCS_RU = {
     "offer": "https://telegra.ph/POLZOVATELSKOE-SOGLASHENIE-07-01-29",
@@ -34,14 +143,41 @@ DOCS_EN = {
     "policy": "https://telegra.ph/Politika-konfidicialnosti-07-01"
 }
 
-# --- ТЕКСТЫ И ТАРИФЫ ---
+# ==================================================
+# ID КАНАЛОВ
+# ==================================================
+CHANNEL_IDS = {
+    "1": "-1004267025056",
+    "2": "-1004478645537",
+    "3": "-1004325704012",
+    "4": "-1004362010819",
+    "5": "-1004303957771",
+    "6": "-1004429510738",
+    "7": "-1003748125426",
+    "8": "-1004415846130",
+    "9": "-1004331987176",
+    "10": "-1001234567899",
+    "11": "-1003862973415",
+    "12": "-1004123456789",
+    "13": "-1004234567890",
+    "14": "-1004345678901",
+    "15": "-1004456789012",
+    "16": "-1004567890123",
+    "test": "-1003875225035",
+}
+
+# ==================================================
+# ТЕКСТЫ
+# ==================================================
 LANG = {
     "ru": {
         "start_promo": "🎉 <b>Промокод {code} активирован! Скидка {discount}%!</b>",
         "start_welcome": "👋 Привет, {name}!\n\n<a href=\"{offer}\">Пользовательское соглашение</a>\n<a href=\"{policy}\">Политика конфиденциальности</a>",
         "prices_menu": "📋 <b>Прайс</b>\n\nВыберите тариф, чтобы узнать подробности и оформить покупку.",
-        "subs_menu": "📋 <b>Ваши подписки</b>\n\nУ вас пока нет активных подписок.\nВыберите тариф, чтобы оформить доступ.",
-        "tariff_desc": "📋 <b>{name}</b>\n\n{price_line}\n\n📝 <b>Описание тарифа:</b>\n{desc}\n\n🔒 <b>Будет получен доступ на срок {duration} к:</b>\n• {project} (внешняя ссылка)",
+        "subs_menu": "📋 <b>Ваши активные подписки</b>\n\n{list}",
+        "no_subs": "⌛️ <b>У Вас нет действующих подписок.</b>\n\nВыберите тариф, чтобы оформить доступ.",
+        "tariff_desc": "📋 <b>{name}</b>\n\n💰 Цена: {price_text}\nСрок доступа: {duration}\n\n{desc}",
+        "tariff_desc_paid": "📋 <b>{name}</b>\n\n💰 Цена: {price_text}\nСрок доступа: {duration}\n\n{desc}\n\n✅ <b>ТАРИФ ОПЛАЧЕН</b>\n\n🔑 Для получения ссылки напишите в поддержку @Nastia_sup",
         "enter_promo": "🏷️ <b>Введите код промокода</b>\n\nНапишите промокод в чат.",
         "promo_success": "✅ Промокод <b>{code}</b> активирован! Скидка {discount}% 🔥\n\n📋 <b>{name}</b>\n💰 Цена: <s>{old_rub} RUB</s> → {new_rub} RUB <b>(-{discount}%)</b>\n\nВыберите валюту для оплаты.",
         "promo_fail": "❌ Промокод не найден. Попробуйте еще раз (или нажмите ◀️ Отмена).",
@@ -49,28 +185,34 @@ LANG = {
         "pay_rub": "📋 <b>{name}</b>\nСрок доступа: {duration}\n{price_line}💳 Способ оплаты: RollyPay\n\n💰 Итоговая стоимость: {final} RUB\n\n🔒 Будет получен доступ к:\n• {project} (внешняя ссылка)\n\n✅ Счет на оплату сформирован! Сразу же после оплаты здесь появятся ссылки с доступами",
         "pay_stars": "📋 <b>{name}</b>\nСрок доступа: {duration}\n{price_line}💳 Способ оплаты: ЗА ЗВЕЗДЫ ⭐\n\n💰 Итоговая стоимость: {final} STARS\n\nℹ️ <b>Информация по оплате</b>\nПодарить звезды или подарки на этот аккаунт - <a href=\"{support}\">@Nastia_sup</a>\n\nкурс:\n1 ⭐ - 1 рубль\n\nОтправьте скриншот или файл подтверждения оплаты - он будет передан продавцу.\n\n⚠️ <b>Внимание:</b> на квитанции должны быть четко видны: дата, время и сумма платежа!\nЗа поддельные скриншоты продавец вас может заблокировать!",
         "refresh_link": "♻️ <i>Ссылка обновлена!</i>",
-        "btn_prices": "🛍️ Прайс",
-        "btn_subs": "🎁 Подписки",
+        "btn_prices": "💵 Тарифы",
+        "btn_subs": "⏳ Мои подписки",
         "btn_promo": "🏷️ Ввести промокод",
         "btn_pay": "💳 Способы оплаты",
-        "btn_back": "◀️ Назад",
+        "btn_back": "👈 НАЗАД",
         "btn_pay_rub": "{price} RUB",
         "btn_pay_rub_disc": "{price} RUB 🏷️(-{disc}%)",
         "btn_pay_stars": "{price} STARS",
         "btn_pay_stars_disc": "{price} STARS 🏷️(-{disc}%)",
-        "btn_goto_pay": "💳 Перейти к оплате",
+        "btn_goto_pay": "✅ ПЕРЕЙТИ К ОПЛАТЕ",
         "btn_new_link": "🔗 Получить новую ссылку",
-        "btn_to_prices": "📋 К прайсу",
-        "btn_cancel": "◀️ Отмена",
+        "btn_to_prices": "✅ КУПИТЬ ПОДПИСКУ",
+        "btn_cancel": "🚫 ОТМЕНА",
         "btn_stars_go": "⭐ Stars со скидкой до 42%",
-        "btn_lang": "🇷🇺 Язык"
+        "btn_lang": "🇷🇺 Язык",
+        "payment_success": "✅ <b>Оплата прошла!</b>\n\n🔗 <b>Ваша ссылка доступа (действует 30 секунд):</b>\n{link}\n\n⚠️ <b>Внимание!</b> Ссылка действительна только 30 секунд!\n\nСпасибо за покупку! ❤️",
+        "payment_success_test": "✅ <b>Доступ открыт!</b>\n\n🔗 <b>Ваша ссылка доступа (действует 30 секунд):</b>\n{link}\n\n⚠️ <b>Внимание!</b> Ссылка действительна только 30 секунд!\n\nСпасибо за использование бота! ❤️",
+        "subs_list_item": "• {name} (оплачен ✅)",
+        "main_menu_text": "После выбора и оплаты тарифа бот автоматически тебе выдаст доступ на вход в группу. На случай потери ссылки на нашу випку, ты сможешь всегда её запросить повторно у бота, это бесплатно.\n\nНажми на тариф чтобы прочесть описание.\n\nКаждый канал отличается\n\n<a href=\"https://t.me/+HkgtwLYWumJiMTcx\">ОТЗЫВЫ НАЖМИ</a>"
     },
     "en": {
         "start_promo": "🎉 <b>Promo code {code} activated! {discount}% discount!</b>",
         "start_welcome": "👋 Hello, {name}!\n\n<a href=\"{offer}\">Terms of Service</a>\n<a href=\"{policy}\">Privacy Policy</a>",
         "prices_menu": "📋 <b>Prices</b>\n\nSelect a tariff to view details and make a purchase.",
-        "subs_menu": "📋 <b>Your subscriptions</b>\n\nYou don't have any active subscriptions yet.\nSelect a tariff to get access.",
-        "tariff_desc": "📋 <b>{name}</b>\n\n{price_line}\n\n📝 <b>Tariff description:</b>\n{desc}\n\n🔒 <b>You will get access for {duration} to:</b>\n• {project} (external link)",
+        "subs_menu": "📋 <b>Your active subscriptions</b>\n\n{list}",
+        "no_subs": "⌛️ <b>You don't have any active subscriptions.</b>\n\nSelect a tariff to get access.",
+        "tariff_desc": "📋 <b>{name}</b>\n\n💰 Price: {price_text}\nAccess duration: {duration}\n\n{desc}",
+        "tariff_desc_paid": "📋 <b>{name}</b>\n\n💰 Price: {price_text}\nAccess duration: {duration}\n\n{desc}\n\n✅ <b>TARIFF PAID</b>\n\n🔑 To get the link contact support @Nastia_sup",
         "enter_promo": "🏷️ <b>Enter promo code</b>\n\nType the promo code in the chat.",
         "promo_success": "✅ Promo code <b>{code}</b> activated! {discount}% discount 🔥\n\n📋 <b>{name}</b>\n💰 Price: <s>{old_rub} RUB</s> → {new_rub} RUB <b>(-{discount}%)</b>\n\nChoose a currency for payment.",
         "promo_fail": "❌ Promo code not found. Try again (or press ◀️ Cancel).",
@@ -78,129 +220,212 @@ LANG = {
         "pay_rub": "📋 <b>{name}</b>\nAccess duration: {duration}\n{price_line}💳 Payment method: RollyPay\n\n💰 Total cost: {final} RUB\n\n🔒 You will get access to:\n• {project} (external link)\n\n✅ Invoice created! Right after payment, access links will appear here",
         "pay_stars": "📋 <b>{name}</b>\nAccess duration: {duration}\n{price_line}💳 Payment method: FOR STARS ⭐\n\n💰 Total cost: {final} STARS\n\nℹ️ <b>Payment info</b>\nSend stars or gifts to this account - <a href=\"{support}\">@Nastia_sup</a>\n\nRate:\n1 ⭐ - 1 ruble\n\nSend a screenshot or file confirming payment - it will be forwarded to the seller.\n\n⚠️ <b>Attention:</b> the receipt must clearly show: date, time, and payment amount!\nFor fake screenshots, the seller may block you!",
         "refresh_link": "♻️ <i>Link refreshed!</i>",
-        "btn_prices": "🛍️ Prices",
-        "btn_subs": "🎁 Subscriptions",
+        "btn_prices": "💵 Prices",
+        "btn_subs": "⏳ My subscriptions",
         "btn_promo": "🏷️ Enter promo code",
         "btn_pay": "💳 Payment methods",
-        "btn_back": "◀️ Back",
+        "btn_back": "👈 Back",
         "btn_pay_rub": "{price} RUB",
         "btn_pay_rub_disc": "{price} RUB 🏷️(-{disc}%)",
         "btn_pay_stars": "{price} STARS",
         "btn_pay_stars_disc": "{price} STARS 🏷️(-{disc}%)",
-        "btn_goto_pay": "💳 Go to payment",
+        "btn_goto_pay": "✅ GO TO PAYMENT",
         "btn_new_link": "🔗 Get new link",
-        "btn_to_prices": "📋 Go to prices",
-        "btn_cancel": "◀️ Cancel",
+        "btn_to_prices": "✅ BUY SUBSCRIPTION",
+        "btn_cancel": "🚫 CANCEL",
         "btn_stars_go": "⭐ Stars up to 42% off",
-        "btn_lang": "🇬🇧 Language"
+        "btn_lang": "🇬🇧 Language",
+        "payment_success": "✅ <b>Payment successful!</b>\n\n🔗 <b>Your access link (valid 30 seconds):</b>\n{link}\n\n⚠️ <b>Warning!</b> The link is valid only 30 seconds!\n\nThank you for your purchase! ❤️",
+        "payment_success_test": "✅ <b>Access granted!</b>\n\n🔗 <b>Your access link (valid 30 seconds):</b>\n{link}\n\n⚠️ <b>Warning!</b> The link is valid only 30 seconds!\n\nThank you for using the bot! ❤️",
+        "subs_list_item": "• {name} (paid ✅)",
+        "main_menu_text": "After selecting and paying for the tariff, the bot will automatically give you access to the group. If you lose the link to our VIP, you can always request it again from the bot, it's free.\n\nClick on the tariff to read the description.\n\nEach channel is different"
     }
 }
 
-# ТАРИФЫ (цены только в кнопках, в названиях цены убраны)
+# ==================================================
+# ТАРИФЫ
+# ==================================================
 TARIFFS = {
-    "celebrity": {
-        "name_ru": "Слив знаменитостей",
-        "name_en": "Celebrity Leaks",
+    "1": {
+        "name_ru": "🎁 Слив знаменитостей 🌟",
+        "name_en": "🎁 Celebrity Leaks 🌟",
+        "price_rub": 99,
+        "price_stars": 90,
+        "duration_ru": "1 месяц",
+        "duration_en": "1 month",
+        "category": "main",
+        "desc_ru": "Вы получите доступ к следующим ресурсам:\n• Знаменитости VBlinse💝 (канал)\n\n❗️Что есть в привате?\n\nСливы Аринян, Маряны Ро, Эммы Гловер, RocksyLight, Генсухи, Инстасамки, Леи Горной, Чио Ям, Оляши, yuuiechka, Клубнички Лизы и др."
+    },
+    "2": {
+        "name_ru": "🖤 Сливы шкyp 🖤",
+        "name_en": "🖤 Skin Leaks 🖤",
         "price_rub": 349,
         "price_stars": 300,
         "duration_ru": "1 месяц",
         "duration_en": "1 month",
-        "desc_ru": "Слив знаменитостей\n\nИнст Рина\nДаша Дошик\nЛиза Анохина\nXdhka\nВаля Карнавал\nДаша Дошик\nИнстасамка\nСвета Соллар\nИ множество других блогерш\n\nДипфейков нет, только реальные сливы и засветы от блогерш ❤️"
+        "category": "main",
+        "desc_ru": "Вы получите доступ к следующим ресурсам:\n• H2 (канал)\n\n❗️ После покупки вы попадете в приватный канал со сливом девушек\n\n✅ Что в канале? П0pнo девок 13-19, а так-же слив и их разводом на фото, видео и \"беседы\" в скайпе, иногда ссылками на соц сети и Некоторых особых шкур есть номера и страницы вк\n\n❓Уровень? В основном 14-20, но встречаются и до 14 Вo3pacT\n\n✅ Помимо канала прилагается еще немного архивов с шкурками"
     },
-    "shkur": {
-        "name_ru": "Сливы шкур",
-        "name_en": "Skin Leaks",
-        "price_rub": 349,
-        "price_stars": 300,
-        "duration_ru": "1 месяц",
-        "duration_en": "1 month",
-        "desc_ru": "После покупки вы попадете в приватный канал со сливом девушек\n\nЧто в канале? Порно девок 13-19, а так-же слив и их разводом на фото, видео и \"беседы\" в скайпе, иногда ссылками на соц сети и Некоторых особых шкур есть номера и страницы вк\n\nУровень? В основном 14-20, но встречаются и до 14 Возраст\n\nПомимо канала прилагается еще немного архивов с шкурками"
-    },
-    "mini_det": {
-        "name_ru": "Mini Детск. До 12",
-        "name_en": "Mini Child. Up to 12",
+    "3": {
+        "name_ru": "❕Mini Deтск. До 12 🌐-Хит",
+        "name_en": "❕Mini Child. Up to 12 🌐-Hit",
         "price_rub": 499,
         "price_stars": 450,
         "duration_ru": "1 месяц",
         "duration_en": "1 month",
-        "desc_ru": "Это мини пак с огромным количеством небольших видео\n\nПосле покупки вы попадете в приватный канал с детским порно довольно таки жестким\n\nУровень? 11-12 возраст, секс, изнасилование, инцест, ласкает себя и т.д.\n\nПомимо видео прилагается еще архивы с множеством гб"
+        "category": "main",
+        "desc_ru": "Это мини пак с огромным количеством небольших видео\n\n❗️ После покyпки вы попадете в привaтный kaнал с de**ским пopno довольно таки жectkиm.\n\n✅ Уровень? i1-i12 вo3PacT, ceks, изnocuловаnие, инцceT, ласкает себя и т.д.\n\n✅ Помимо видео прилагается еще архивы с множеством гб"
     },
-    "shkodnitsy": {
-        "name_ru": "ШкоДнищь (13-17 Лет)",
-        "name_en": "Schoolgirls (13-17 Years)",
+    "4": {
+        "name_ru": "🔥💙ШкоDницЫ👧🏼🔥 (13-17 Jleт)",
+        "name_en": "🔥💙Schoolgirls👧🏼🔥 (13-17 Years)",
         "price_rub": 799,
         "price_stars": 700,
         "duration_ru": "1 месяц",
         "duration_en": "1 month",
-        "desc_ru": "После покупки вы попадете в приватный канал с цельным процессом порно\n\nБольшой сборник из мега подборки порно ваших любимых школьниц возрастом от 12 до 17, есть износа, инцест, много сливов с вписок и просто слив шкур, скрытые камеры школьниц/студенток и сексом, ласкает себя и т.д.\n\nПомимо видео прилагается еще архивы с множеством гб этой категории.\n\nКонтента очень много"
+        "category": "main",
+        "desc_ru": "❗️ После покупки вы попадете в приватный канал с цe**льным пpоцe**poм пopno\n\n✅ Большой сборник из мега подборки пopно ваших любимых шкoльниц возрастом от 12 до 17 🔥 , есть изnocuлование, инцceT, много сливов с впиcoк и просто cлив шkyp, скрытые камеры шkoльниц/стyдeнток и ceксoм, ласкает себя и т.д.\n\n✅ Помимо видео прилагается еще архивы с множеством гб этой категории.\n\nКонтента очень много"
     },
-    "premium_det": {
-        "name_ru": "Premium Детск. До 12",
-        "name_en": "Premium Child. Up to 12",
+    "5": {
+        "name_ru": "❗️Premium Deтск. До 12 ✅",
+        "name_en": "❗️Premium Child. Up to 12 ✅",
         "price_rub": 899,
         "price_stars": 800,
         "duration_ru": "1 месяц",
         "duration_en": "1 month",
-        "desc_ru": "После покупки вы попадете в приватный канал с детским порно довольно таки жестким\n\nУровень? 11-12 возраст, секс, износа, инцест, ласкает себя и т.д.\n\nПомимо видео прилагается еще архивы с множеством гб\n\nКонтента очень много"
+        "category": "main",
+        "desc_ru": "❗️ После покyпки вы попадете в привaтный kaнал с de**ским пopno довольно таки жectkиm.\n\n✅ Уровень? i1-i12 вo3PacT, ceks, изnocuловаnие, инцceT, ласкает себя и т.д.\n\n✅ Помимо видео прилагается еще архивы с множеством гб\n\nКонтента очень много"
     },
-    "zoo": {
-        "name_ru": "Канал Зоо",
-        "name_en": "Zoo Channel",
+    "6": {
+        "name_ru": "Канал 3оo🐕",
+        "name_en": "Zoo Channel🐕",
         "price_rub": 239,
         "price_stars": 200,
         "duration_ru": "2 месяца",
         "duration_en": "2 months",
+        "category": "main",
         "desc_ru": "Канал с зоо контентом"
     },
-    "gay": {
-        "name_ru": "Геи",
+    "7": {
+        "name_ru": "Гeи",
         "name_en": "Gay",
         "price_rub": 299,
         "price_stars": 250,
         "duration_ru": "1 месяц",
         "duration_en": "1 month",
-        "desc_ru": "Вы получите доступ к следующим ресурсам:\n- Gg (канал)\n\nУровень? Есть до 12, но в основном видео 12-17, есть немного износа, инцест, скрытые камеры школьников/студентов и конечно основное же секс и минет\n\nПомимо видео прилагается еще дополнительный архив."
+        "category": "main",
+        "desc_ru": "Вы получите доступ к следующим ресурсам:\n• Gg (канал)\n\n❗️ После покупки вы попадете в приватный канал с м+м\n\n✅ Уровень? Есть до 12, но в основном видео 12-17, есть немного изnocuлование, инцceT, скрытые камеры шkoльнов/стyдeнтов и конечно основное же ceкс и минет\n\n✅ Помимо видео прилагается еще дополнительный архив."
     },
-    "zakladchitsy": {
-        "name_ru": "Закладчицы",
-        "name_en": "Stashers",
+    "8": {
+        "name_ru": "❤️‍🔥3αkладчu̸цы",
+        "name_en": "❤️‍🔥Stashers",
         "price_rub": 499,
         "price_stars": 450,
         "duration_ru": "1 месяц",
         "duration_en": "1 month",
-        "desc_ru": "Что тебя ждет в наших приватах\nЖесткие изнасилования Закладчиц\nОтсосы, ебля закладчиц в посадках\nПолные видео с закладчицами"
+        "category": "main",
+        "desc_ru": "Чтo тебя ждeт в нaшu̸х прu̸вαтαх\n\nЖестκu̸e uu̸знαсu̸лвaнu̸я 3αkладчu̸ц\n0тсосы, е6ля зαкладчu̸ц в пoсαдкαх\nПолные вu̸део с зαкладчu̸цамu̸"
     },
-    "pak_obnovlenie": {
-        "name_ru": "Пак - Обновление ссылок",
-        "name_en": "Pack - Link Update",
-        "price_rub": 699,
-        "price_stars": 600,
-        "duration_ru": "21 дней",
-        "duration_en": "21 days",
-        "desc_ru": "Сливаем ссылки других каналов, рекомендуем покупать после просмотра других тарифов\n\nЕдинственный пак который не входит во всё включено"
-    },
-    "vse_vklyucheno": {
-        "name_ru": "Всё включено 2026",
-        "name_en": "All inclusive 2026",
-        "price_rub": 3999,
-        "price_stars": 3500,
+    "9": {
+        "name_ru": "🩵Всё включено 2026💚",
+        "name_en": "🩵All inclusive 2026💚",
+        "price_rub": 2999,
+        "price_stars": 2500,
         "duration_ru": "Бессрочно",
         "duration_en": "Forever",
-        "desc_ru": "Вы получите доступ сразу в 10 наших каналов при этом их подписка останется у вас НАВСЕГДА! А выйдет гораздо дешевле чем покупать по отдельности\n\nКонтента у вас выйдет очень МНОГО\n\n+ Бонусные каналы к тарифу"
+        "category": "main",
+        "desc_ru": "❗️Вы получите доступ сразу в 10 наших каналов при этом их подписка останется у вас НАВСЕГДА! А выйдет гораздо дешевле чем покупать по отдельности.\n\n🔥 Кoнтeнтa у вас выйдет очень МНОГО\n\n+ Бонусные каналы к тарифу"
     },
-    "vpn": {
+    "10": {
         "name_ru": "Vpn 7 дней",
         "name_en": "Vpn 7 days",
         "price_rub": 10000,
         "price_stars": 9000,
         "duration_ru": "1 день",
         "duration_en": "1 day",
-        "desc_ru": "Не покупать, читайте описание.\n\nХороший VPN для обхода белых списков.\n\nПереходим по ссылке:\nhttps://t.me/velvet_vpn_bot?start=AW3BJ7Iz\n\nВам дают 2 дня бесплатного доступа, а также вводим ещё 2 секретных промокода на 7 дней:\n\nWELCOME_BACK\nJUSTTRY"
+        "category": "main",
+        "desc_ru": "Не покупать, читайте описание.\n\n✅ Хороший VPN для обхода белых списков.\n\nПереходим по ссылке:\nhttps://t.me/velvet_vpn_bot?start=sYzcRbjU\n\nВам дают 2 дня бесплатного доступа, а также вводим ещё 2 секретных промокода на 7 дней:\n\nWELCOME_BACK\nJUSTTRY"
+    },
+    "11": {
+        "name_ru": "✅Пак - Обновление ссылок",
+        "name_en": "✅Pack - Link Update",
+        "price_rub": 699,
+        "price_stars": 600,
+        "duration_ru": "21 дней",
+        "duration_en": "21 days",
+        "category": "main",
+        "desc_ru": "Cливaeм ccлыky дpyгиx кaнaлoв, peкoмeндyeм пoкyпaть пocлe пpocмoтpa дpyгиx тapифoв\n\nЕдинственный пак который не входит во всё включено"
+    },
+    "12": {
+        "name_ru": "🎭 Альтушки 🦄",
+        "name_en": "🎭 Alt girls 🦄",
+        "price_rub": 299,
+        "price_stars": 250,
+        "duration_ru": "1 месяц",
+        "duration_en": "1 month",
+        "category": "main",
+        "desc_ru": "Bы пoлyчитe дocтyп k cлeдyющим pecypcaм:\n• αльтушkи (kaнaл)\n\n❗️ Пocлe пoкyпkи вы пoпaдeтe в пpивaтный kaнaл co cливaми αльтушeк, эмo, пaнkoв и дpyгиx нeфopмaлoв.\n\n❓Уpoвeнь? 14-20 лeт, coбpaны caмыe coчныe cливы нeфopмaлoк, ecть гpyппoвyшkи, инцecT, cкpытыe кaмepы, жecтkий ceкc.\n\n✅ Пoмимo видeo пpилaгaeтcя apхив c дoпoлнитeльным koнтeнтoм."
+    },
+    "13": {
+        "name_ru": "💀Premium Износьl",
+        "name_en": "💀Premium Rapes",
+        "price_rub": 559,
+        "price_stars": 500,
+        "duration_ru": "1 месяц",
+        "duration_en": "1 month",
+        "category": "main",
+        "desc_ru": "Bы пoлyчитe дocтyп k cлeдyющим pecypcaм:\n• Изнocы (kaнaл)\n\n❗️ Пocлe пoкyпkи вы пoпaдeтe в пpивaтный kaнaл c caмыми жecтkими видeo из**cилoв@ний.\n\n❓Уpoвeнь? 13-17, бывают и до 13, пoлныe видeo нacилия, инцecT, гpyппoвыe из**cилoв@ния, cкpытыe кaмepы, жecть.\n\n✅ также прилагается дополнительный к@нал"
+    },
+    "14": {
+        "name_ru": "💯Жêçть (2-17 Jlet)🩸",
+        "name_en": "💯Extreme (2-17 Years)🩸",
+        "price_rub": 599,
+        "price_stars": 550,
+        "duration_ru": "1 месяц",
+        "duration_en": "1 month",
+        "category": "main",
+        "desc_ru": "Bы пoлyчитe дocтyп k cлeдyющим pecypcaм:\n• Жecть (kaнaл)\n\n❗️ Пocлe пoкyпkи вы пoпaдeтe в пpивaтный kaнaл c caмым жecтkим koнтeнтoм, чтo ecть в интepнeтe.\n\n❓Уpoвeнь? 14-20 лeт, кpoвь, yнижeния, бoль, экcтpим, мясo, гpyппoвyшkи, инцecT — вce caмoe жecтkoe."
+    },
+    "15": {
+        "name_ru": "🎞️ Скрьlтые к@меры🎥",
+        "name_en": "🎞️ Hidden cameras🎥",
+        "price_rub": 499,
+        "price_stars": 450,
+        "duration_ru": "1 месяц",
+        "duration_en": "1 month",
+        "category": "main",
+        "desc_ru": "Bы пoлyчитe дocтyп k cлeдyющим pecypcaм:\n• Cкpытыe кaмepы (kaнaл)\n\n❗️ Пocлe пoкyпkи вы пoпaдeтe в пpивaтный kaнaл co cкpьIтыми кaмepaми из caмыx нeoжидaнныx мecт.\n\n❓Уpoвeнь? 13-18 лeт, paздeвaлkи, тyaлeты, дyшeвыe, cкpьIтыe кaмepы в шkoлax и yнивepcитeтax, бывают даже под партой, в вазе кабинета физрука, peaльныe cливы.\n\n✅ Пoмимo видeo пpилaгaeтcя apхив c дoпoлнитeльным koнтeнтoм."
+    },
+    "16": {
+        "name_ru": "🍻 Vпиçкu🍾",
+        "name_en": "🍻 Partys🍾",
+        "price_rub": 349,
+        "price_stars": 300,
+        "duration_ru": "1 месяц",
+        "duration_en": "1 month",
+        "category": "main",
+        "desc_ru": "Bы пoлyчитe дocтyп k cлeдyющим pecypcaм:\n• Bпиcки (kaнaл)\n\n❗️ Пocлe пoкyпkи вы пoпaдeтe в пpивaтный kaнaл co cливaми c вeчepинoк и впиcoк, без постан0вы.\n\n❓Уpoвeнь? 14-20 лeт, пьяныe кoмпaнии, opгии, гpyппoвyшkи, cкp\"тыe кaмepы, воспользовались моментом, без сознания, пoлнoe бeзyмcтвo тycoвoк без цen3ypьl.\n\n✅ Пoмимo видeo пpилaгaeтcя apхив c дoпoлнитeльным koнтeнтoм."
     }
 }
 
+# --- ТЕСТОВЫЙ ТАРИФ ---
+TEST_TARIFF = {
+    "name_ru": "🧪 ТЕСТОВЫЙ тариф (Бесплатно)",
+    "name_en": "🧪 TEST tariff (Free)",
+    "price_rub": 0,
+    "price_stars": 0,
+    "duration_ru": "Тестовый",
+    "duration_en": "Test",
+    "desc_ru": "🧪 Это тестовый тариф. Он полностью БЕСПЛАТНЫЙ!\n\nПросто выберите его и получите ссылку для тестирования."
+}
+
+# --- ПРОМОКОДЫ ---
 PROMO_CODES = {
-    "VIP10": 10, "SUPER25": 25, "HOMAKE40": 40, "BANK50": 50
+    "VIP10": 10,
+    "SUPER25": 25,
+    "HOMAKE40": 40,
+    "BANK50": 50,
+    "LOLIPOP80": 80
 }
 
 # --- ИНИЦИАЛИЗАЦИЯ ---
@@ -209,10 +434,14 @@ session = AiohttpSession()
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML), session=session)
 dp = Dispatcher(storage=storage)
 
+# --- FSM STATES ---
 class PromoStates(StatesGroup):
     waiting_for_promo = State()
 
-# --- ФУНКЦИЯ ДЛЯ RollyPay ---
+class MailingStates(StatesGroup):
+    waiting_for_content = State()
+
+# --- ФУНКЦИИ ---
 async def create_rollypay_payment(amount: int, user_id: int, tariff_key: str, tariff_name: str) -> str:
     url = "https://rollypay.io/api/v1/payments"
     headers = {
@@ -224,7 +453,7 @@ async def create_rollypay_payment(amount: int, user_id: int, tariff_key: str, ta
         "amount": str(amount),
         "payment_currency": "RUB",
         "order_id": f"order_{user_id}_{tariff_key}_{int(asyncio.get_event_loop().time())}",
-        "description": "Оплата доступа к контенту",
+        "description": f"Оплата доступа #{user_id}_{tariff_key}",
         "callback_url": ROLLYPAY_CALLBACK_URL,
         "success_url": "https://t.me/blogprivatbot",
         "fail_url": "https://t.me/blogprivatbot",
@@ -239,13 +468,46 @@ async def create_rollypay_payment(amount: int, user_id: int, tariff_key: str, ta
             else:
                 error_text = await response.text()
                 logging.error(f"Ошибка RollyPay: {response.status} - {error_text}")
-                print(f"Ошибка RollyPay: {response.status} - {error_text}")
                 return None
 
-# --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
 async def get_lang(state: FSMContext):
     data = await state.get_data()
     return data.get("lang", "ru")
+
+async def create_one_time_link(chat_id: str) -> str:
+    try:
+        expire_date = datetime.now() + timedelta(seconds=30)
+        invite_link = await bot.create_chat_invite_link(
+            chat_id=chat_id,
+            member_limit=1,
+            expire_date=expire_date,
+            creates_join_request=False
+        )
+        return invite_link.invite_link
+    except Exception as e:
+        logging.error(f"Ошибка создания ссылки: {e}")
+        return None
+
+async def save_payment_and_send_link(message: Message, tariff_key: str, lang: str, user_id: int):
+    if tariff_key not in CHANNEL_IDS:
+        await message.answer("❌ Ошибка: канал для этого тарифа не настроен.")
+        return
+    
+    chat_id = CHANNEL_IDS[tariff_key]
+    link = await create_one_time_link(chat_id)
+    
+    if not link:
+        await message.answer("❌ Ошибка создания ссылки.")
+        return
+    
+    add_paid_tariff(user_id, tariff_key)
+    
+    if tariff_key == "test":
+        text = LANG[lang]["payment_success_test"].format(link=link)
+    else:
+        text = LANG[lang]["payment_success"].format(link=link)
+    
+    await message.answer(text, disable_web_page_preview=False)
 
 # --- КЛАВИАТУРЫ ---
 def get_main_keyboard(lang):
@@ -254,10 +516,31 @@ def get_main_keyboard(lang):
     ], resize_keyboard=True)
 
 def get_tariff_keyboard(lang):
+    """Все тарифы в одном меню (без Паков)"""
     buttons = []
     for key, data in TARIFFS.items():
         name = data['name_ru'] if lang == 'ru' else data['name_en']
-        buttons.append([InlineKeyboardButton(text=f"{name} • {data['price_rub']} RUB", callback_data=f"tariff_{key}")])
+        buttons.append([InlineKeyboardButton(text=name, callback_data=f"tariff_{key}")])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+def get_test_tariff_keyboard(lang):
+    buttons = [
+        [InlineKeyboardButton(text="💳 ОПЛАТИТЬ", callback_data="pay_test")],
+        [InlineKeyboardButton(text="👈 НАЗАД", callback_data="back_to_prices")]
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+def get_tariff_details_keyboard(tariff_key, lang, user_id):
+    buttons = []
+    buttons.append([InlineKeyboardButton(text=LANG[lang]["btn_promo"], callback_data=f"enter_promo_{tariff_key}")])
+    
+    is_paid = is_tariff_paid(user_id, tariff_key)
+    
+    if not is_paid:
+        buttons.append([InlineKeyboardButton(text=LANG[lang]["btn_pay"], callback_data=f"choose_pay_{tariff_key}")])
+    
+    buttons.append([InlineKeyboardButton(text=LANG[lang]["btn_back"], callback_data="back_to_prices")])
+    
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 def get_payment_method_keyboard(tariff_key, discount_percent=0, lang="ru"):
@@ -287,56 +570,177 @@ def get_payment_action_keyboard(payment_url, tariff_key, lang="ru"):
         [InlineKeyboardButton(text=LANG[lang]["btn_back"], callback_data="back_to_prices")]
     ])
 
-def get_back_to_prices_keyboard(lang="ru"):
-    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=LANG[lang]["btn_to_prices"], callback_data="back_to_prices")]])
-
-# --- НАСТРОЙКА МЕНЮ КОМАНД ---
-async def set_bot_commands():
-    commands = [
-        BotCommand(command="start", description="Запустить бота / Start bot"),
-        BotCommand(command="language", description="Сменить язык / Change language")
-    ]
-    await bot.set_my_commands(commands)
-    print("✅ Команды /start и /language установлены в меню!")
-
 # --- ХЭНДЛЕРЫ ---
-
 @dp.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext):
-    args = message.text.split()
-    promo_code_from_link = None
-    if len(args) > 1:
-        promo_code_from_link = args[1].strip()
-
-    lang = await get_lang(state)
-    user_name = message.from_user.first_name
+    user_id = message.from_user.id
+    first_name = message.from_user.first_name or "Пользователь"
+    username = message.from_user.username
     
-    if promo_code_from_link and promo_code_from_link in PROMO_CODES:
-        discount = PROMO_CODES[promo_code_from_link]
-        await state.update_data(discount=discount)
-        text = f"👋 Привет, {user_name}!\n\n{LANG[lang]['start_promo'].format(code=promo_code_from_link, discount=discount)}\n\n<a href=\"{DOCS_RU['offer']}\">Пользовательское соглашение</a>\n<a href=\"{DOCS_RU['policy']}\">Политика конфиденциальности</a>"
-        await message.answer(text, disable_web_page_preview=True)
-    else:
-        docs = DOCS_RU if lang == "ru" else DOCS_EN
-        text = LANG[lang]["start_welcome"].format(name=user_name, offer=docs['offer'], policy=docs['policy'])
-        await message.answer(text, disable_web_page_preview=True)
+    # Сохраняем пользователя в Supabase
+    add_user(user_id, first_name, username)
+    
+    lang = await get_lang(state)
+    
+    welcome_text = f"""👋 Привет, {first_name}!
+Ты попал в наш бот✅
 
-    await message.answer(
-        LANG[lang]["prices_menu"],
-        reply_markup=get_tariff_keyboard(lang)
+Нажимая на каждый тариф ты видишь краткое описание.
+
+Если бот не доступен пиши мне
+
+Тех.поддержка: @Nastia_sup"""
+    
+    await message.answer(welcome_text, disable_web_page_preview=True)
+    
+    menu_text = LANG[lang]["main_menu_text"]
+    await message.answer(menu_text, reply_markup=get_tariff_keyboard(lang))
+
+@dp.message(Command("admin"))
+async def cmd_admin(message: Message):
+    if message.from_user.id not in ADMIN_IDS:
+        await message.answer("❌ Только для админов!")
+        return
+    
+    text = """⚙️ <b>Админ-панель</b>
+
+Выберите действие:"""
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📨 Рассылка", callback_data="admin_mailing")]
+    ])
+    
+    await message.answer(text, reply_markup=keyboard)
+
+@dp.callback_query(F.data == "admin_mailing")
+async def admin_mailing_start(callback: CallbackQuery, state: FSMContext):
+    if callback.from_user.id not in ADMIN_IDS:
+        await callback.answer("❌ Только для админов!", show_alert=True)
+        return
+    
+    await callback.message.delete()
+    await callback.message.answer(
+        "📨 <b>Рассылка</b>\n\n"
+        "Отправь мне сообщение (текст, фото, видео, GIF, документ), "
+        "и я разошлю его ВСЕМ пользователям бота.\n\n"
+        "⚠️ <b>Внимание:</b> Рассылка пойдёт всем пользователям, которые "
+        "когда-либо взаимодействовали с ботом.\n\n"
+        "🔄 Чтобы отменить, отправь /cancel"
     )
+    await state.set_state(MailingStates.waiting_for_content)
+
+@dp.message(Command("cancel"))
+async def cancel_mailing(message: Message, state: FSMContext):
+    await state.clear()
+    await message.answer("✅ Рассылка отменена.")
+
+@dp.message(MailingStates.waiting_for_content)
+async def process_mailing_content(message: Message, state: FSMContext):
+    if message.from_user.id not in ADMIN_IDS:
+        await message.answer("❌ Только для админов!")
+        return
+    
+    await message.answer("⏳ Начинаю рассылку...")
+    
+    # Получаем всех пользователей из Supabase
+    users = get_all_users()
+    
+    if not users:
+        await message.answer("❌ Нет пользователей для рассылки!")
+        await state.clear()
+        return
+    
+    success = 0
+    failed = 0
+    
+    for user_id in users:
+        try:
+            if message.text:
+                await bot.send_message(user_id, message.text, parse_mode="HTML")
+            elif message.photo:
+                await bot.send_photo(user_id, message.photo[-1].file_id, caption=message.caption)
+            elif message.video:
+                await bot.send_video(user_id, message.video.file_id, caption=message.caption)
+            elif message.animation:
+                await bot.send_animation(user_id, message.animation.file_id, caption=message.caption)
+            elif message.document:
+                await bot.send_document(user_id, message.document.file_id, caption=message.caption)
+            else:
+                await message.answer("❌ Неподдерживаемый тип сообщения!")
+                await state.clear()
+                return
+            
+            success += 1
+            await asyncio.sleep(0.05)
+        except Exception as e:
+            failed += 1
+    
+    await message.answer(
+        f"✅ <b>Рассылка завершена!</b>\n\n"
+        f"📤 Отправлено: {success}\n"
+        f"❌ Не доставлено: {failed}\n"
+        f"👥 Всего пользователей: {len(users)}"
+    )
+    await state.clear()
+
+@dp.message(Command("test67"))
+async def cmd_test67(message: Message, state: FSMContext):
+    lang = await get_lang(state)
+    user_id = message.from_user.id
+    
+    is_paid = is_tariff_paid(user_id, "test")
+    
+    if is_paid:
+        text = f"""📋 <b>{TEST_TARIFF['name_ru'] if lang == 'ru' else TEST_TARIFF['name_en']}</b>
+
+💰 Цена: БЕСПЛАТНО 🎉
+Срок доступа: {TEST_TARIFF['duration_ru'] if lang == 'ru' else TEST_TARIFF['duration_en']}
+
+{TEST_TARIFF['desc_ru'] if lang == 'ru' else TEST_TARIFF['desc_en']}
+
+✅ <b>ТАРИФ ОПЛАЧЕН</b>
+
+🔑 Для получения ссылки напишите в поддержку @Nastia_sup"""
+        await message.answer(text)
+        return
+    
+    text = f"""📋 <b>{TEST_TARIFF['name_ru'] if lang == 'ru' else TEST_TARIFF['name_en']}</b>
+
+💰 Цена: БЕСПЛАТНО 🎉
+Срок доступа: {TEST_TARIFF['duration_ru'] if lang == 'ru' else TEST_TARIFF['duration_en']}
+
+{TEST_TARIFF['desc_ru'] if lang == 'ru' else TEST_TARIFF['desc_en']}"""
+    
+    await message.answer(text, reply_markup=get_test_tariff_keyboard(lang))
+
+@dp.callback_query(F.data == "pay_test")
+async def pay_test_tariff(callback: CallbackQuery, state: FSMContext):
+    lang = await get_lang(state)
+    user_id = callback.from_user.id
+    
+    if is_tariff_paid(user_id, "test"):
+        await callback.answer("❌ Вы уже активировали тестовый тариф!", show_alert=True)
+        return
+    
+    await callback.message.delete()
+    await save_payment_and_send_link(callback.message, "test", lang, user_id)
+    await callback.answer("✅ Доступ открыт!")
+
+@dp.message(Command("reset"))
+async def cmd_reset(message: Message):
+    if message.from_user.id not in ADMIN_IDS:
+        await message.answer("❌ У вас нет прав для этой команды!")
+        return
+    await message.answer("🔄 Выполняю сброс...")
+    await message.answer("✅ Бот сброшен!")
 
 @dp.message(Command("language"))
 async def cmd_language(message: Message, state: FSMContext):
-    current_lang = await get_lang(state)
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🇷🇺 Русский", callback_data="set_lang_ru")],
         [InlineKeyboardButton(text="🇬🇧 English", callback_data="set_lang_en")]
     ])
-    if current_lang == "ru":
-        await message.answer("🌍 Выберите язык:", reply_markup=kb)
-    else:
-        await message.answer("🌍 Choose language:", reply_markup=kb)
+    await message.answer("🌍 Выберите язык:", reply_markup=kb)
 
 @dp.callback_query(F.data.startswith("set_lang_"))
 async def process_lang_change(callback: CallbackQuery, state: FSMContext):
@@ -344,57 +748,97 @@ async def process_lang_change(callback: CallbackQuery, state: FSMContext):
     await state.update_data(lang=lang)
     await callback.answer()
     await callback.message.delete()
-    
-    if lang == "ru":
-        await callback.message.answer("✅ Язык установлен на Русский! Нажмите /start")
-    else:
-        await callback.message.answer("✅ Language set to English! Press /start")
+    await callback.message.answer(f"✅ Язык установлен на {'Русский' if lang == 'ru' else 'English'}! Нажмите /start")
 
 @dp.message(F.text.in_([LANG["ru"]["btn_prices"], LANG["en"]["btn_prices"]]))
 async def show_prices(message: Message, state: FSMContext):
     lang = await get_lang(state)
-    await message.answer(LANG[lang]["prices_menu"], reply_markup=get_tariff_keyboard(lang))
+    await message.answer(LANG[lang]["main_menu_text"], reply_markup=get_tariff_keyboard(lang))
 
 @dp.message(F.text.in_([LANG["ru"]["btn_subs"], LANG["en"]["btn_subs"]]))
 async def show_subscriptions(message: Message, state: FSMContext):
     lang = await get_lang(state)
-    await message.answer(LANG[lang]["subs_menu"], reply_markup=get_back_to_prices_keyboard(lang))
+    user_id = message.from_user.id
+    
+    paid_list = get_paid_tariffs(user_id)
+    
+    if paid_list:
+        subs_list = []
+        for tariff_key in paid_list:
+            if tariff_key == "test":
+                name = TEST_TARIFF['name_ru'] if lang == "ru" else TEST_TARIFF['name_en']
+                subs_list.append(LANG[lang]["subs_list_item"].format(name=name))
+            elif tariff_key in TARIFFS:
+                name = TARIFFS[tariff_key]['name_ru'] if lang == "ru" else TARIFFS[tariff_key]['name_en']
+                subs_list.append(LANG[lang]["subs_list_item"].format(name=name))
+        
+        if subs_list:
+            text = LANG[lang]["subs_menu"].format(list="\n".join(subs_list))
+            await message.answer(text)
+            return
+    
+    await message.answer(LANG[lang]["no_subs"])
 
 @dp.callback_query(F.data == "back_to_prices")
 async def back_to_prices(callback: CallbackQuery, state: FSMContext):
     lang = await get_lang(state)
     await callback.answer()
-    await callback.message.edit_text(LANG[lang]["prices_menu"], reply_markup=get_tariff_keyboard(lang))
+    await callback.message.edit_text(LANG[lang]["main_menu_text"], reply_markup=get_tariff_keyboard(lang))
 
 @dp.callback_query(F.data.startswith("tariff_"))
 async def show_tariff_details(callback: CallbackQuery, state: FSMContext):
     tariff_key = callback.data.replace("tariff_", "")
+    
+    if tariff_key not in TARIFFS:
+        await callback.answer("❌ Тариф не найден", show_alert=True)
+        return
+    
     tariff = TARIFFS[tariff_key]
     lang = await get_lang(state)
     data = await state.get_data()
     discount = data.get("discount", 0)
+    user_id = callback.from_user.id
     
     name = tariff['name_ru'] if lang == "ru" else tariff['name_en']
     duration = tariff['duration_ru'] if lang == "ru" else tariff['duration_en']
     desc = tariff['desc_ru'] if lang == "ru" else tariff['desc_en']
     
-    if discount > 0:
+    if tariff['price_rub'] == 0:
+        price_text = "БЕСПЛАТНО 🎉"
+    elif discount > 0:
         new_price = int(tariff['price_rub'] * (1 - discount / 100))
-        price_line = f"💰 Цена: <s>{tariff['price_rub']} RUB</s> -> {new_price} RUB <b>(-{discount}%)</b>"
+        price_text = f"<s>{tariff['price_rub']} 🇷🇺RUB</s> → {new_price} 🇷🇺RUB <b>(-{discount}%)</b>"
     else:
-        price_line = f"💰 Цена: {tariff['price_rub']} RUB"
-        
-    text = LANG[lang]["tariff_desc"].format(name=name, price_line=price_line, desc=desc, duration=duration, project=PROJECT_NAME)
+        price_text = f"{tariff['price_rub']} 🇷🇺RUB"
     
-    await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=LANG[lang]["btn_promo"], callback_data=f"enter_promo_{tariff_key}")],
-        [InlineKeyboardButton(text=LANG[lang]["btn_pay"], callback_data=f"choose_pay_{tariff_key}")],
-        [InlineKeyboardButton(text=LANG[lang]["btn_back"], callback_data="back_to_prices")]
-    ]))
+    is_paid = is_tariff_paid(user_id, tariff_key)
+    
+    if is_paid:
+        text = LANG[lang]["tariff_desc_paid"].format(
+            name=name,
+            price_text=price_text,
+            duration=duration,
+            desc=desc
+        )
+    else:
+        text = LANG[lang]["tariff_desc"].format(
+            name=name,
+            price_text=price_text,
+            duration=duration,
+            desc=desc
+        )
+    
+    await callback.message.edit_text(text, reply_markup=get_tariff_details_keyboard(tariff_key, lang, user_id))
 
+# --- ОСТАЛЬНЫЕ ОБРАБОТЧИКИ ---
 @dp.callback_query(F.data.startswith("enter_promo_"))
 async def enter_promo(callback: CallbackQuery, state: FSMContext):
     tariff_key = callback.data.replace("enter_promo_", "")
+    
+    if tariff_key not in TARIFFS:
+        await callback.answer("❌ Тариф не найден", show_alert=True)
+        return
+    
     lang = await get_lang(state)
     await state.update_data(current_tariff=tariff_key)
     await callback.message.edit_text(
@@ -403,47 +847,21 @@ async def enter_promo(callback: CallbackQuery, state: FSMContext):
     )
     await state.set_state(PromoStates.waiting_for_promo)
 
-@dp.callback_query(F.data.startswith("cancel_promo_"))
-async def cancel_promo(callback: CallbackQuery, state: FSMContext):
-    tariff_key = callback.data.replace("cancel_promo_", "")
-    lang = await get_lang(state)
-    await state.clear()
-    await callback.message.delete()
-    tariff = TARIFFS[tariff_key]
-    data = await state.get_data()
-    discount = data.get("discount", 0)
-    
-    name = tariff['name_ru'] if lang == "ru" else tariff['name_en']
-    duration = tariff['duration_ru'] if lang == "ru" else tariff['duration_en']
-    desc = tariff['desc_ru'] if lang == "ru" else tariff['desc_en']
-
-    if discount > 0:
-        price_line = f"💰 Цена: <s>{tariff['price_rub']} RUB</s> -> {int(tariff['price_rub'] * (1 - discount/100))} RUB <b>(-{discount}%)</b>"
-    else:
-        price_line = f"💰 Цена: {tariff['price_rub']} RUB"
-
-    text = LANG[lang]["tariff_desc"].format(name=name, price_line=price_line, desc=desc, duration=duration, project=PROJECT_NAME)
-    await callback.message.answer(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=LANG[lang]["btn_promo"], callback_data=f"enter_promo_{tariff_key}")],
-        [InlineKeyboardButton(text=LANG[lang]["btn_pay"], callback_data=f"choose_pay_{tariff_key}")],
-        [InlineKeyboardButton(text=LANG[lang]["btn_back"], callback_data="back_to_prices")]
-    ]))
-
 @dp.message(PromoStates.waiting_for_promo)
 async def process_promo(message: Message, state: FSMContext):
-    promo_code = message.text.strip()
+    promo_code = message.text.strip().upper()
     data = await state.get_data()
     tariff_key = data.get("current_tariff")
     lang = await get_lang(state)
     
-    if not tariff_key:
+    if not tariff_key or tariff_key not in TARIFFS:
         await state.clear()
+        await message.answer("❌ Ошибка. Попробуйте выбрать тариф заново.")
         return
 
     if promo_code in PROMO_CODES:
         discount = PROMO_CODES[promo_code]
         await state.update_data(discount=discount)
-        await state.clear()
         
         tariff = TARIFFS[tariff_key]
         name = tariff['name_ru'] if lang == "ru" else tariff['name_en']
@@ -454,14 +872,75 @@ async def process_promo(message: Message, state: FSMContext):
     else:
         await message.answer(LANG[lang]["promo_fail"])
 
+@dp.callback_query(F.data.startswith("cancel_promo_"))
+async def cancel_promo(callback: CallbackQuery, state: FSMContext):
+    tariff_key = callback.data.replace("cancel_promo_", "")
+    
+    if tariff_key not in TARIFFS:
+        await callback.answer("❌ Тариф не найден", show_alert=True)
+        return
+    
+    lang = await get_lang(state)
+    await state.clear()
+    await callback.message.delete()
+    tariff = TARIFFS[tariff_key]
+    data = await state.get_data()
+    discount = data.get("discount", 0)
+    user_id = callback.from_user.id
+    
+    name = tariff['name_ru'] if lang == "ru" else tariff['name_en']
+    duration = tariff['duration_ru'] if lang == "ru" else tariff['duration_en']
+    desc = tariff['desc_ru'] if lang == "ru" else tariff['desc_en']
+
+    if tariff['price_rub'] == 0:
+        price_text = "БЕСПЛАТНО 🎉"
+    elif discount > 0:
+        new_price = int(tariff['price_rub'] * (1 - discount / 100))
+        price_text = f"<s>{tariff['price_rub']} RUB</s> -> {new_price} RUB <b>(-{discount}%)</b>"
+    else:
+        price_text = f"{tariff['price_rub']} RUB"
+
+    is_paid = is_tariff_paid(user_id, tariff_key)
+    
+    if is_paid:
+        text = LANG[lang]["tariff_desc_paid"].format(
+            name=name,
+            price_text=price_text,
+            duration=duration,
+            desc=desc
+        )
+    else:
+        text = LANG[lang]["tariff_desc"].format(
+            name=name,
+            price_text=price_text,
+            duration=duration,
+            desc=desc
+        )
+    
+    await callback.message.answer(text, reply_markup=get_tariff_details_keyboard(tariff_key, lang, user_id))
+
 @dp.callback_query(F.data.startswith("choose_pay_"))
 async def choose_payment(callback: CallbackQuery, state: FSMContext):
     tariff_key = callback.data.replace("choose_pay_", "")
+    
+    if tariff_key not in TARIFFS:
+        await callback.answer("❌ Тариф не найден", show_alert=True)
+        return
+    
+    tariff = TARIFFS[tariff_key]
+    
+    if tariff['price_rub'] == 0:
+        lang = await get_lang(state)
+        user_id = callback.from_user.id
+        await callback.message.delete()
+        await save_payment_and_send_link(callback.message, tariff_key, lang, user_id)
+        await callback.answer("✅ Доступ открыт!")
+        return
+    
     lang = await get_lang(state)
     data = await state.get_data()
     discount = data.get("discount", 0)
     
-    tariff = TARIFFS[tariff_key]
     name = tariff['name_ru'] if lang == "ru" else tariff['name_en']
     duration = tariff['duration_ru'] if lang == "ru" else tariff['duration_en']
     
@@ -471,20 +950,36 @@ async def choose_payment(callback: CallbackQuery, state: FSMContext):
     else:
         show_rub = tariff['price_rub']
         price_text = f"{show_rub} RUB"
-        
+    
     text = LANG[lang]["choose_pay"].format(name=name, duration=duration, price_text=price_text, project=PROJECT_NAME)
     await callback.message.edit_text(text, reply_markup=get_payment_method_keyboard(tariff_key, discount, lang))
 
 @dp.callback_query(F.data.startswith("pay_rub_"))
 async def process_rub_payment(callback: CallbackQuery, state: FSMContext):
     tariff_key = callback.data.replace("pay_rub_", "")
+    
+    if tariff_key not in TARIFFS:
+        await callback.answer("❌ Тариф не найден", show_alert=True)
+        return
+    
+    tariff = TARIFFS[tariff_key]
+    
+    if tariff['price_rub'] == 0:
+        lang = await get_lang(state)
+        user_id = callback.from_user.id
+        await callback.message.delete()
+        await save_payment_and_send_link(callback.message, tariff_key, lang, user_id)
+        await callback.answer("✅ Доступ открыт!")
+        return
+    
     lang = await get_lang(state)
     data = await state.get_data()
     discount = data.get("discount", 0)
-    tariff = TARIFFS[tariff_key]
     
     final_price = int(tariff['price_rub'] * (1 - discount / 100))
     user_id = callback.from_user.id
+    
+    await state.update_data(pending_tariff=tariff_key)
     
     payment_url = await create_rollypay_payment(final_price, user_id, tariff_key, tariff['name_ru'])
     
@@ -496,19 +991,43 @@ async def process_rub_payment(callback: CallbackQuery, state: FSMContext):
             price_line = f"💰 Цена: <s>{tariff['price_rub']} RUB</s> → {final_price} RUB (-{discount}%)\n"
         else:
             price_line = f"💰 Цена: {final_price} RUB\n"
-            
+        
         text = LANG[lang]["pay_rub"].format(name=name, duration=duration, price_line=price_line, final=final_price, project=PROJECT_NAME)
         await callback.message.edit_text(text, reply_markup=get_payment_action_keyboard(payment_url, tariff_key, lang))
     else:
         await callback.answer("❌ Ошибка создания платежа. Попробуйте позже или выберите другой способ оплаты.", show_alert=True)
+        
+@dp.callback_query(F.data.startswith("payment_success_"))
+async def payment_success(callback: CallbackQuery, state: FSMContext):
+    tariff_key = callback.data.replace("payment_success_", "")
+    lang = await get_lang(state)
+    user_id = callback.from_user.id
+    
+    await callback.message.delete()
+    await save_payment_and_send_link(callback.message, tariff_key, lang, user_id)
+    await callback.answer("✅ Оплата успешно завершена!")
 
 @dp.callback_query(F.data.startswith("pay_stars_"))
 async def process_stars_payment(callback: CallbackQuery, state: FSMContext):
     tariff_key = callback.data.replace("pay_stars_", "")
+    
+    if tariff_key not in TARIFFS:
+        await callback.answer("❌ Тариф не найден", show_alert=True)
+        return
+    
+    tariff = TARIFFS[tariff_key]
+    
+    if tariff['price_rub'] == 0:
+        lang = await get_lang(state)
+        user_id = callback.from_user.id
+        await callback.message.delete()
+        await save_payment_and_send_link(callback.message, tariff_key, lang, user_id)
+        await callback.answer("✅ Доступ открыт!")
+        return
+    
     lang = await get_lang(state)
     data = await state.get_data()
     discount = data.get("discount", 0)
-    tariff = TARIFFS[tariff_key]
     name = tariff['name_ru'] if lang == "ru" else tariff['name_en']
     duration = tariff['duration_ru'] if lang == "ru" else tariff['duration_en']
     
@@ -519,7 +1038,7 @@ async def process_stars_payment(callback: CallbackQuery, state: FSMContext):
         price_line = f"💰 Цена: <s>{tariff['price_stars']} STARS</s> → {final_price} STARS (-{discount}%)\n"
     else:
         price_line = f"💰 Цена: {final_price} STARS\n"
-        
+    
     support = SUPPORT_CONTACT_RU if lang == "ru" else SUPPORT_CONTACT_EN
     text = LANG[lang]["pay_stars"].format(name=name, duration=duration, price_line=price_line, final=final_price, project=PROJECT_NAME, support=support)
     
@@ -532,6 +1051,11 @@ async def process_stars_payment(callback: CallbackQuery, state: FSMContext):
 @dp.callback_query(F.data.startswith("refresh_link_"))
 async def refresh_link(callback: CallbackQuery, state: FSMContext):
     tariff_key = callback.data.replace("refresh_link_", "")
+    
+    if tariff_key not in TARIFFS:
+        await callback.answer("❌ Тариф не найден", show_alert=True)
+        return
+    
     tariff = TARIFFS[tariff_key]
     user_id = callback.from_user.id
     final_price = tariff['price_rub']
@@ -550,33 +1074,31 @@ async def refresh_link(callback: CallbackQuery, state: FSMContext):
     else:
         await callback.answer("❌ Ошибка создания новой ссылки. Попробуйте позже.", show_alert=True)
 
-# --- ФУНКЦИЯ ДЛЯ UPTIMEROBOT ---
-async def handle_uptime_check(request):
-    return web.Response(text="Bot is alive and kicking!")
-
-async def start_web_server():
-    app = web.Application()
-    app.router.add_get('/', handle_uptime_check)
-    port = int(os.environ.get("PORT", 8080))
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, host='0.0.0.0', port=port)
-    await site.start()
-    print(f"✅ Веб-сервер для UptimeRobot запущен на порту {port}")
-
+# ==================================================
+# ЗАПУСК
+# ==================================================
 async def main():
     logging.basicConfig(level=logging.INFO)
-    try:
-        webhook_info = await bot.get_webhook_info()
-        if webhook_info.url:
-            await bot.delete_webhook(drop_pending_updates=True)
-    except Exception:
-        pass
     
-    await set_bot_commands()
-    await start_web_server()
-    print("🤖 Бот полностью готов (2 языка + меню команд)!")
+    print("=" * 60)
+    print("🚀 БОТ ЗАПУЩЕН!")
+    print("📦 База данных: Supabase")
+    print("👥 Пользователи сохраняются в облаке")
+    print("=" * 60)
+    
+    await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
+def run_flask():
+    """Запускает Flask в фоновом потоке"""
+    port = int(os.environ.get("PORT", 8080))
+    flask_app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
+
 if __name__ == "__main__":
+    # Запускаем Flask в фоновом потоке
+    flask_thread = threading.Thread(target=run_flask, daemon=True)
+    flask_thread.start()
+    print("✅ Flask запущен в фоновом потоке!")
+
+    # Бот запускаем в основном потоке
     asyncio.run(main())
