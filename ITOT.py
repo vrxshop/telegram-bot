@@ -115,7 +115,7 @@ def mark_discount_used(user_id: int, discount_code: str):
 ROLLYPAY_API_KEY = "z39_r_COJdiB7PWeddOYvzT2rx4cjIbS1m4JJcgBTi0"
 ROLLYPAY_CALLBACK_URL = "https://t-bot-18jz.onrender.com/webhook"
 
-BOT_TOKEN = "8814729405:AAG5QrI-r4L813SYs7X0spMSCjfEt6toQ1k"
+BOT_TOKEN = "7753109639:AAF-S62nZ9IURwIsvt5_0jSUQb5bJVSAGqw"
 PROJECT_NAME = "VIP"
 SUPPORT_CONTACT_RU = "https://t.me/Nastia_sup"
 SUPPORT_CONTACT_EN = "https://t.me/Nastia_sup"
