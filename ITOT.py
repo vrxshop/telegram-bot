@@ -54,6 +54,15 @@ def get_all_users():
         logging.error(f"Ошибка получения пользователей: {e}")
         return []
 
+def get_user_count():
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(text("SELECT COUNT(*) FROM users"))
+            return result.fetchone()[0] or 0
+    except Exception as e:
+        logging.error(f"Ошибка получения количества пользователей: {e}")
+        return 0
+
 def add_user(user_id: int, first_name: str, username: str = None):
     try:
         with engine.connect() as conn:
@@ -145,16 +154,12 @@ CHANNEL_IDS = {
     "9": "-1004331987176",
     "10": "-1001234567899",
     "11": "-1003862973415",
-    "12": "-1004123456789",
-    "13": "-1004234567890",
     "14": "-1004345678901",
-    "15": "-1004456789012",
-    "16": "-1004567890123",
     "test": "-1003875225035",
 }
 
 # ==================================================
-# БАЗА ДАННЫХ (SQLite для совместимости)
+# БАЗА ДАННЫХ (SQLite)
 # ==================================================
 DB_PATH = "users.db"
 
@@ -366,7 +371,7 @@ TARIFFS = {
         "price_stars": 450,
         "duration_ru": "1 месяц",
         "duration_en": "1 month",
-        "category": "main",
+        "category": "paki",
         "desc_ru": "Чтo тебя ждeт в нaшu̸х прu̸вαтαх\n\nЖестκu̸e uu̸знαсu̸лвaнu̸я 3αkладчu̸ц\n0тсосы, е6ля зαкладчu̸ц в пoсαдкαх\nПолные вu̸део с зαкладчu̸цамu̸"
     },
     "9": {
@@ -396,28 +401,8 @@ TARIFFS = {
         "price_stars": 600,
         "duration_ru": "21 дней",
         "duration_en": "21 days",
-        "category": "main",
+        "category": "paki",
         "desc_ru": "Cливaeм ccлыky дpyгиx кaнaлoв, peкoмeндyeм пoкyпaть пocлe пpocмoтpa дpyгиx тapифoв\n\nЕдинственный пак который не входит во всё включено"
-    },
-    "12": {
-        "name_ru": "🎭 Альтушки 🦄",
-        "name_en": "🎭 Alt girls 🦄",
-        "price_rub": 299,
-        "price_stars": 250,
-        "duration_ru": "1 месяц",
-        "duration_en": "1 month",
-        "category": "main",
-        "desc_ru": "Bы пoлyчитe дocтyп k cлeдyющим pecypcaм:\n• αльтушkи (kaнaл)\n\n❗️ Пocлe пoкyпkи вы пoпaдeтe в пpивaтный kaнaл co cливaми αльтушeк, эмo, пaнkoв и дpyгиx нeфopмaлoв.\n\n❓Уpoвeнь? 14-20 лeт, coбpaны caмыe coчныe cливы нeфopмaлoк, ecть гpyппoвyшkи, инцecT, cкpытыe кaмepы, жecтkий ceкc.\n\n✅ Пoмимo видeo пpилaгaeтcя apхив c дoпoлнитeльным koнтeнтoм."
-    },
-    "13": {
-        "name_ru": "💀Premium Износьl",
-        "name_en": "💀Premium Rapes",
-        "price_rub": 559,
-        "price_stars": 500,
-        "duration_ru": "1 месяц",
-        "duration_en": "1 month",
-        "category": "main",
-        "desc_ru": "Bы пoлyчитe дocтyп k cлeдyющим pecypcaм:\n• Изнocы (kaнaл)\n\n❗️ Пocлe пoкyпkи вы пoпaдeтe в пpивaтный kaнaл c caмыми жecтkими видeo из**cилoв@ний.\n\n❓Уpoвeнь? 13-17, бывают и до 13, пoлныe видeo нacилия, инцecT, гpyппoвыe из**cилoв@ния, cкpытыe кaмepы, жecть.\n\n✅ также прилагается дополнительный к@нал"
     },
     "14": {
         "name_ru": "💯Жêçть (2-17 Jlet)🩸",
@@ -426,28 +411,8 @@ TARIFFS = {
         "price_stars": 550,
         "duration_ru": "1 месяц",
         "duration_en": "1 month",
-        "category": "main",
+        "category": "paki",
         "desc_ru": "Bы пoлyчитe дocтyп k cлeдyющим pecypcaм:\n• Жecть (kaнaл)\n\n❗️ Пocлe пoкyпkи вы пoпaдeтe в пpивaтный kaнaл c caмым жecтkим koнтeнтoм, чтo ecть в интepнeтe.\n\n❓Уpoвeнь? 14-20 лeт, кpoвь, yнижeния, бoль, экcтpим, мясo, гpyппoвyшkи, инцecT — вce caмoe жecтkoe."
-    },
-    "15": {
-        "name_ru": "🎞️ Скрьlтые к@меры🎥",
-        "name_en": "🎞️ Hidden cameras🎥",
-        "price_rub": 499,
-        "price_stars": 450,
-        "duration_ru": "1 месяц",
-        "duration_en": "1 month",
-        "category": "main",
-        "desc_ru": "Bы пoлyчитe дocтyп k cлeдyющим pecypcaм:\n• Cкpытыe кaмepы (kaнaл)\n\n❗️ Пocлe пoкyпkи вы пoпaдeтe в пpивaтный kaнaл co cкpьIтыми кaмepaми из caмыx нeoжидaнныx мecт.\n\n❓Уpoвeнь? 13-18 лeт, paздeвaлkи, тyaлeты, дyшeвыe, cкpьIтыe кaмepы в шkoлax и yнивepcитeтax, бывают даже под партой, в вазе кабинета физрука, peaльныe cливы.\n\n✅ Пoмимo видeo пpилaгaeтcя apхив c дoпoлнитeльным koнтeнтoм."
-    },
-    "16": {
-        "name_ru": "🍻 Vпиçкu🍾",
-        "name_en": "🍻 Partys🍾",
-        "price_rub": 349,
-        "price_stars": 300,
-        "duration_ru": "1 месяц",
-        "duration_en": "1 month",
-        "category": "main",
-        "desc_ru": "Bы пoлyчитe дocтyп k cлeдyющим pecypcaм:\n• Bпиcки (kaнaл)\n\n❗️ Пocлe пoкyпkи вы пoпaдeтe в пpивaтный kaнaл co cливaми c вeчepинoк и впиcoк, без постан0вы.\n\n❓Уpoвeнь? 14-20 лeт, пьяныe кoмпaнии, opгии, гpyппoвyшkи, cкp\"тыe кaмepы, воспользовались моментом, без сознания, пoлнoe бeзyмcтвo тycoвoк без цen3ypьl.\n\n✅ Пoмимo видeo пpилaгaeтcя apхив c дoпoлнитeльным koнтeнтoм."
     }
 }
 
@@ -488,7 +453,6 @@ class MailingStates(StatesGroup):
 
 # --- ФУНКЦИИ ---
 async def create_rollypay_payment(amount: int, user_id: int, tariff_key: str, tariff_name: str) -> str:
-    # Проверяем скидки пользователя
     discounts = get_user_discounts(user_id)
     final_price = amount
     discount_code = None
@@ -497,7 +461,6 @@ async def create_rollypay_payment(amount: int, user_id: int, tariff_key: str, ta
         max_discount = max(d[1] for d in discounts)
         if max_discount > 0:
             final_price = int(amount * (1 - max_discount / 100))
-            # Отмечаем скидку как использованную
             for code, percent, used in discounts:
                 if percent == max_discount and used == 0:
                     mark_discount_used(user_id, code)
@@ -577,10 +540,23 @@ def get_main_keyboard(lang):
     ], resize_keyboard=True)
 
 def get_tariff_keyboard(lang):
+    """Главное меню (тарифы main + кнопка Паки)"""
     buttons = []
     for key, data in TARIFFS.items():
-        name = data['name_ru'] if lang == 'ru' else data['name_en']
-        buttons.append([InlineKeyboardButton(text=name, callback_data=f"tariff_{key}")])
+        if data.get("category") == "main":
+            name = data['name_ru'] if lang == 'ru' else data['name_en']
+            buttons.append([InlineKeyboardButton(text=name, callback_data=f"tariff_{key}")])
+    buttons.append([InlineKeyboardButton(text="👈🏻 Паки", callback_data="show_paki")])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+def get_paki_keyboard(lang):
+    """Меню паков (только category == paki)"""
+    buttons = []
+    for key, data in TARIFFS.items():
+        if data.get("category") == "paki":
+            name = data['name_ru'] if lang == 'ru' else data['name_en']
+            buttons.append([InlineKeyboardButton(text=name, callback_data=f"tariff_{key}")])
+    buttons.append([InlineKeyboardButton(text="👈 НАЗАД", callback_data="back_to_prices")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 def get_test_tariff_keyboard(lang):
@@ -630,6 +606,12 @@ def get_payment_action_keyboard(payment_url, tariff_key, lang="ru"):
         [InlineKeyboardButton(text=LANG[lang]["btn_back"], callback_data="back_to_prices")]
     ])
 
+def get_admin_keyboard():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📨 Рассылка", callback_data="admin_mailing")],
+        [InlineKeyboardButton(text="📊 Статистика", callback_data="admin_stats")]
+    ])
+
 # --- ХЭНДЛЕРЫ ---
 @dp.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext):
@@ -661,15 +643,15 @@ async def cmd_admin(message: Message):
         await message.answer("❌ Только для админов!")
         return
     
-    text = """⚙️ <b>Админ-панель</b>
+    user_count = get_user_count()
+    
+    text = f"""⚙️ <b>Админ-панель</b>
+
+👥 Всего пользователей: {user_count}
 
 Выберите действие:"""
     
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📨 Рассылка", callback_data="admin_mailing")]
-    ])
-    
-    await message.answer(text, reply_markup=keyboard)
+    await message.answer(text, reply_markup=get_admin_keyboard())
 
 @dp.callback_query(F.data == "admin_mailing")
 async def admin_mailing_start(callback: CallbackQuery, state: FSMContext):
@@ -846,6 +828,21 @@ async def mail_discount_60(callback: CallbackQuery):
     )
     await callback.answer("✅ Скидка 60% активирована!", show_alert=True)
 
+@dp.callback_query(F.data == "admin_stats")
+async def admin_stats(callback: CallbackQuery):
+    if callback.from_user.id not in ADMIN_IDS:
+        await callback.answer("❌ Только для админов!", show_alert=True)
+        return
+    
+    user_count = get_user_count()
+    
+    await callback.message.edit_text(
+        f"📊 <b>Статистика бота</b>\n\n"
+        f"👥 Всего пользователей: {user_count}",
+        reply_markup=get_admin_keyboard()
+    )
+    await callback.answer()
+
 @dp.message(Command("test67"))
 async def cmd_test67(message: Message, state: FSMContext):
     lang = await get_lang(state)
@@ -948,6 +945,12 @@ async def back_to_prices(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     await callback.message.edit_text(LANG[lang]["main_menu_text"], reply_markup=get_tariff_keyboard(lang))
 
+@dp.callback_query(F.data == "show_paki")
+async def show_paki(callback: CallbackQuery, state: FSMContext):
+    lang = await get_lang(state)
+    await callback.answer()
+    await callback.message.edit_text(LANG[lang]["main_menu_text"], reply_markup=get_paki_keyboard(lang))
+
 @dp.callback_query(F.data.startswith("tariff_"))
 async def show_tariff_details(callback: CallbackQuery, state: FSMContext):
     tariff_key = callback.data.replace("tariff_", "")
@@ -993,7 +996,7 @@ async def show_tariff_details(callback: CallbackQuery, state: FSMContext):
     
     await callback.message.edit_text(text, reply_markup=get_tariff_details_keyboard(tariff_key, lang, user_id))
 
-# --- ОСТАЛЬНЫЕ ОБРАБОТЧИКИ (promo, pay, stars и т.д.) ---
+# --- ОСТАЛЬНЫЕ ОБРАБОТЧИКИ ---
 @dp.callback_query(F.data.startswith("enter_promo_"))
 async def enter_promo(callback: CallbackQuery, state: FSMContext):
     tariff_key = callback.data.replace("enter_promo_", "")
@@ -1246,6 +1249,7 @@ async def main():
     print("=" * 60)
     print("🚀 БОТ ЗАПУЩЕН!")
     print("📦 База данных: Supabase + SQLite")
+    print("👥 Пользователи сохраняются в Supabase")
     print("=" * 60)
     
     await bot.delete_webhook(drop_pending_updates=True)
